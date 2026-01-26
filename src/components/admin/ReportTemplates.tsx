@@ -74,7 +74,7 @@ const ReportTemplates = () => {
       // Export based on format
       switch (format) {
         case 'excel':
-          exportToExcel({ 'Report': [] }, templateId)
+          await exportToExcel({ 'Report': [] }, templateId)
           break
         case 'pdf':
           exportToPDF('report-content', templateId)
@@ -93,7 +93,7 @@ const ReportTemplates = () => {
   }
 
   const handleCustomize = (templateId: string) => {
-    toast.info('Customization feature coming soon')
+      toast('Customization feature coming soon', { icon: 'ℹ️' })
   }
 
   return (
@@ -179,7 +179,7 @@ const ReportTemplates = () => {
             </p>
           </div>
           <button
-            onClick={() => toast.info('Custom template builder coming soon')}
+            onClick={() => toast('Custom template builder coming soon', { icon: 'ℹ️' })}
             className="btn-primary"
           >
             Create Template

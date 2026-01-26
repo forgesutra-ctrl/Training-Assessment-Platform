@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, FileText, Star, TrendingUp, LogOut, Menu, BarChart3, Activity, Clock, UserCog, FileText as FileTextIcon, Brain, AlertTriangle, LayoutDashboard, Compare, FileText as ReportIcon, BarChart2, Sliders } from 'lucide-react'
+import { Users, FileText, Star, TrendingUp, LogOut, Menu, BarChart3, Activity, Clock, UserCog, FileText as FileTextIcon, Brain, AlertTriangle, LayoutDashboard, GitCompare, FileText as ReportIcon, BarChart2, Sliders } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { fetchPlatformStats } from '@/utils/adminQueries'
@@ -66,7 +66,7 @@ const AdminDashboard = () => {
     { id: 'predictive-analytics' as Tab, label: 'Predictive Analytics', icon: Brain },
     { id: 'trend-alerts' as Tab, label: 'Trend Alerts', icon: AlertTriangle },
     { id: 'data-studio' as Tab, label: 'Data Studio', icon: LayoutDashboard },
-    { id: 'comparative-analysis' as Tab, label: 'Comparative Analysis', icon: Compare },
+    { id: 'comparative-analysis' as Tab, label: 'Comparative Analysis', icon: GitCompare },
     { id: 'correlation-analysis' as Tab, label: 'Correlation Analysis', icon: BarChart2 },
     { id: 'scenario-modeling' as Tab, label: 'Scenario Modeling', icon: Sliders },
     { id: 'report-templates' as Tab, label: 'Report Templates', icon: ReportIcon },

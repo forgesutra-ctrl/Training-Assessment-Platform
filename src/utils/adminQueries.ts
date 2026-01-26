@@ -51,7 +51,7 @@ export const fetchPlatformStats = async (): Promise<PlatformStats> => {
 
   // Activity rate (assessments per trainer this month)
   const activityRate =
-    totalTrainers && totalTrainers > 0
+    totalTrainers && totalTrainers > 0 && totalAssessmentsThisMonth !== null
       ? Number((totalAssessmentsThisMonth / totalTrainers).toFixed(2))
       : 0
 
@@ -472,13 +472,11 @@ export const getCrossAssessmentMatrix = async (): Promise<CrossAssessmentMatrix[
     const managerAssessments = assessments?.filter((a: any) => a.assessor_id === manager.id) || []
     const teamAssessments: Record<string, number> = {}
 
-    teams?.forEach((team) => {
+    teams?.forEach((team: any) => {
       const count = managerAssessments.filter((a: any) => {
         const trainerProfile = trainerProfiles?.find((p: any) => p.id === a.trainer_id)
-        const trainerTeam = Array.isArray(trainerProfile?.teams) 
-          ? trainerProfile.teams[0] 
-          : trainerProfile?.teams
-        return trainerTeam?.id === team.id
+        const trainerTeamId = trainerProfile?.team_id
+        return trainerTeamId === team.id
       }).length
       teamAssessments[team.team_name] = count
     })

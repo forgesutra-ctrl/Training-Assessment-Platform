@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { AlertTriangle, TrendingDown, TrendingUp, AlertCircle, X } from 'lucide-react'
+import { AlertTriangle, TrendingDown, TrendingUp, AlertCircle, X, Target } from 'lucide-react'
 import { generateTrendAlerts, detectManagerInactivity, detectPlatformTrends, TrendAlert } from '@/utils/trendAnalysis'
 import { fetchAllTrainersWithStats, fetchManagerActivity } from '@/utils/adminQueries'
 import { fetchTrainerAssessments } from '@/utils/trainerAssessments'

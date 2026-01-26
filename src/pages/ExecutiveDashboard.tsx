@@ -109,7 +109,7 @@ const ExecutiveDashboard = () => {
               Export PDF
             </button>
             <button
-              onClick={() => toast.info('Share feature coming soon')}
+              onClick={() => toast('Share feature coming soon', { icon: 'ℹ️' })}
               className="btn-secondary flex items-center gap-2"
             >
               <Share2 className="w-5 h-5" />

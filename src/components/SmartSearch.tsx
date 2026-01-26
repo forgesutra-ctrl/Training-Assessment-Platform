@@ -151,7 +151,7 @@ const SmartSearch = ({ onSearch, placeholder = 'Ask anything...' }: SmartSearchP
         )}
         {aiEnabled && (
           <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
-            <Sparkles className="w-4 h-4 text-primary-600" title="AI-Powered Search" />
+            <Sparkles className="w-4 h-4 text-primary-600" />
           </div>
         )}
       </div>

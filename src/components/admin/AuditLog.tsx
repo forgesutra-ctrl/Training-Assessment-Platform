@@ -1,20 +1,26 @@
 import { useState, useEffect } from 'react'
 import { Download, Calendar, Filter, Search, Clock, User, Activity, Target } from 'lucide-react'
-import { fetchAuditLogs, downloadAuditLogsCSV, AuditLog, AuditActionType, AuditTargetType } from '@/utils/auditLog'
+import { fetchAuditLogs, downloadAuditLogsCSV, type AuditLog as AuditLogType, AuditActionType, AuditTargetType } from '@/utils/auditLog'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 
 const AuditLog = () => {
   const [loading, setLoading] = useState(true)
-  const [logs, setLogs] = useState<AuditLog[]>([])
+  const [logs, setLogs] = useState<AuditLogType[]>([])
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<{
+    startDate: string
+    endDate: string
+    actionType: AuditActionType | undefined
+    userId: string
+    targetType: AuditTargetType | undefined
+  }>({
     startDate: '',
     endDate: '',
-    actionType: '' as AuditActionType | '',
+    actionType: undefined,
     userId: '',
-    targetType: '' as AuditTargetType | '',
+    targetType: undefined,
   })
   const itemsPerPage = 50
 
@@ -26,7 +32,13 @@ const AuditLog = () => {
     try {
       setLoading(true)
       const offset = (currentPage - 1) * itemsPerPage
-      const result = await fetchAuditLogs(filters, itemsPerPage, offset)
+      const result = await fetchAuditLogs({
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined,
+        actionType: filters.actionType,
+        userId: filters.userId || undefined,
+        targetType: filters.targetType,
+      }, itemsPerPage, offset)
       setLogs(result.logs)
       setTotal(result.total)
     } catch (error: any) {
@@ -39,7 +51,13 @@ const AuditLog = () => {
 
   const handleExport = () => {
     // Fetch all logs for export
-    fetchAuditLogs(filters, 10000, 0)
+    fetchAuditLogs({
+      startDate: filters.startDate || undefined,
+      endDate: filters.endDate || undefined,
+      actionType: filters.actionType,
+      userId: filters.userId || undefined,
+      targetType: filters.targetType,
+    }, 10000, 0)
       .then((result) => {
         downloadAuditLogsCSV(result.logs)
         toast.success('Audit log exported successfully')
@@ -144,7 +162,7 @@ const AuditLog = () => {
             <select
               value={filters.actionType}
               onChange={(e) => {
-                setFilters({ ...filters, actionType: e.target.value as AuditActionType | '' })
+                setFilters({ ...filters, actionType: e.target.value ? (e.target.value as AuditActionType) : undefined })
                 setCurrentPage(1)
               }}
               className="input-field"
@@ -163,9 +181,9 @@ const AuditLog = () => {
               Target Type
             </label>
             <select
-              value={filters.targetType}
+              value={filters.targetType || ''}
               onChange={(e) => {
-                setFilters({ ...filters, targetType: e.target.value as AuditTargetType | '' })
+                setFilters({ ...filters, targetType: e.target.value ? (e.target.value as AuditTargetType) : undefined })
                 setCurrentPage(1)
               }}
               className="input-field"
@@ -184,9 +202,9 @@ const AuditLog = () => {
                 setFilters({
                   startDate: '',
                   endDate: '',
-                  actionType: '' as AuditActionType | '',
+                  actionType: undefined,
                   userId: '',
-                  targetType: '' as AuditTargetType | '',
+                  targetType: undefined,
                 })
                 setCurrentPage(1)
               }}

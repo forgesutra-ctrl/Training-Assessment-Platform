@@ -4,7 +4,7 @@
  */
 
 import { AssessmentWithDetails, TrainerWithStats } from '@/types'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 export interface ReportData {
   title: string
@@ -25,26 +25,81 @@ export interface ExportOptions {
 /**
  * Generate Excel export with multiple sheets
  */
-export const exportToExcel = (
+export const exportToExcel = async (
   data: Record<string, any[]>,
   filename: string = 'report'
-): void => {
-  const workbook = XLSX.utils.book_new()
+): Promise<void> => {
+  const workbook = new ExcelJS.Workbook()
 
   Object.entries(data).forEach(([sheetName, sheetData]) => {
-    const worksheet = XLSX.utils.json_to_sheet(sheetData)
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+    const worksheet = workbook.addWorksheet(sheetName)
+    
+    if (sheetData.length > 0) {
+      // Add headers
+      const headers = Object.keys(sheetData[0])
+      worksheet.addRow(headers)
+      
+      // Style header row
+      worksheet.getRow(1).font = { bold: true }
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      }
+      
+      // Add data rows
+      sheetData.forEach((row) => {
+        worksheet.addRow(headers.map(header => row[header]))
+      })
+      
+      // Auto-fit columns
+      worksheet.columns.forEach((column) => {
+        if (column.header) {
+          column.width = 15
+        }
+      })
+    }
   })
 
-  XLSX.writeFile(workbook, `${filename}.xlsx`)
+  // Generate buffer and download
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${filename}.xlsx`
+  link.click()
 }
 
 /**
  * Generate CSV export
  */
 export const exportToCSV = (data: any[], filename: string = 'report'): void => {
-  const worksheet = XLSX.utils.json_to_sheet(data)
-  const csv = XLSX.utils.sheet_to_csv(worksheet)
+  if (data.length === 0) {
+    console.warn('No data to export')
+    return
+  }
+  
+  // Get headers from first row
+  const headers = Object.keys(data[0])
+  
+  // Create CSV content
+  const csvRows = [
+    headers.join(','), // Header row
+    ...data.map(row => 
+      headers.map(header => {
+        const value = row[header]
+        // Escape commas and quotes in CSV
+        if (value == null) return ''
+        const stringValue = String(value)
+        if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+          return `"${stringValue.replace(/"/g, '""')}"`
+        }
+        return stringValue
+      }).join(',')
+    )
+  ]
+  
+  const csv = csvRows.join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -181,7 +236,7 @@ export const generateCapabilityHeatmap = (
   ]
 
   teams.forEach((team) => {
-    const teamTrainers = trainers.filter((t) => t.team_id === team.id)
+    const teamTrainers = trainers.filter((t) => t.team_name === team.name)
     if (teamTrainers.length === 0) return
 
     parameters.forEach((param) => {

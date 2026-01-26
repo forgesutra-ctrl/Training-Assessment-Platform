@@ -41,6 +41,7 @@ import GoalTracking from '@/components/GoalTracking'
 import StreakTracker from '@/components/StreakTracker'
 import Leaderboard from '@/components/Leaderboard'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { isGamificationEnabled, checkAndAwardBadges } from '@/utils/gamification'
 import toast from 'react-hot-toast'
 
 const TrainerDashboard = () => {
@@ -498,35 +499,16 @@ const TrainerDashboard = () => {
           </>
         )}
 
-        {activeTab === 'badges' && (
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <BadgeSystem />
-          </main>
-        )}
+        {activeTab === 'badges' && <BadgeSystem />}
 
-        {activeTab === 'goals' && (
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <GoalTracking />
-          </main>
-        )}
+        {activeTab === 'goals' && <GoalTracking />}
 
-        {activeTab === 'level' && (
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <LevelSystem />
-          </main>
-        )}
+        {activeTab === 'level' && <LevelSystem />}
 
-        {activeTab === 'streaks' && (
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <StreakTracker />
-          </main>
-        )}
+        {activeTab === 'streaks' && <StreakTracker />}
 
-        {activeTab === 'leaderboard' && (
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <Leaderboard />
-          </main>
-        )}
+        {activeTab === 'leaderboard' && <Leaderboard />}
+      </main>
 
       {/* Assessment Feedback Modal */}
       {selectedAssessment && (

@@ -141,8 +141,8 @@ const TrainerPerformance = () => {
             >
               <option value="">All Teams</option>
               {teams.map((team) => (
-                <option key={team} value={team}>
-                  {team}
+                <option key={team} value={team || ''}>
+                  {team || 'All Teams'}
                 </option>
               ))}
             </select>

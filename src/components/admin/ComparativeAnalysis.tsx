@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Compare, TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react'
+import { GitCompare, TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react'
 import { fetchMonthlyTrends } from '@/utils/adminQueries'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/LoadingSpinner'

@@ -230,7 +230,7 @@ export const awardXP = async (
 
   if (historyError) throw historyError
 
-  return newLevel > currentLevel ? newLevel : 0 // Return new level if leveled up
+  // Function returns void - level up is handled by database trigger
 }
 
 /**

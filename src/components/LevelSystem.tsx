@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Star, TrendingUp, Award, Sparkles } from 'lucide-react'
+import { Star, TrendingUp, Award, Sparkles, CheckCircle } from 'lucide-react'
 import { fetchUserXP, fetchXPHistory, getLevelName, calculateLevel } from '@/utils/gamification'
 import { UserXP, XPHistory } from '@/types'
 import { useAuthContext } from '@/contexts/AuthContext'

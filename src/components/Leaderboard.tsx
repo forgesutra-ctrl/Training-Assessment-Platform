@@ -13,7 +13,7 @@ const Leaderboard = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [preference, setPreference] = useState<LeaderboardPreference | null>(null)
   const [boardType, setBoardType] = useState<'top_performers' | 'most_improved' | 'consistency' | 'parameter'>('top_performers')
-  const [period, setPeriod] = useState<'month' | 'quarter' | 'year' | 'all-time'>('month')
+  const [period, setPeriod] = useState<'month' | 'quarter' | 'ytd' | 'all-time'>('month')
   const [parameter, setParameter] = useState<string>('')
   const [showSettings, setShowSettings] = useState(false)
 
@@ -172,7 +172,7 @@ const Leaderboard = () => {
                 >
                   <option value="month">This Month</option>
                   <option value="quarter">This Quarter</option>
-                  <option value="year">This Year</option>
+                  <option value="ytd">Year to Date</option>
                   <option value="all-time">All Time</option>
                 </select>
               </div>
