@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Star, TrendingUp, Award, Sparkles, CheckCircle } from 'lucide-react'
-import { fetchUserXP, fetchXPHistory, getLevelName, calculateLevel } from '@/utils/gamification'
+import { fetchUserXP, fetchXPHistory, getLevelName, calculateLevel, isGamificationEnabled } from '@/utils/gamification'
 import { UserXP, XPHistory } from '@/types'
 import { useAuthContext } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/LoadingSpinner'
@@ -20,14 +20,33 @@ const LevelSystem = () => {
   }, [user])
 
   const loadXPData = async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const [xp, history] = await Promise.all([
-        fetchUserXP(user!.id),
-        fetchXPHistory(user!.id, 10),
+        fetchUserXP(user.id).catch((error: any) => {
+          // If table doesn't exist or RLS blocks access, return null
+          if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+            console.warn('XP table not accessible or not found:', error.message)
+            return null
+          }
+          throw error
+        }),
+        fetchXPHistory(user.id, 10).catch((error: any) => {
+          // If table doesn't exist or RLS blocks access, return empty array
+          if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+            console.warn('XP history table not accessible or not found:', error.message)
+            return []
+          }
+          throw error
+        }),
       ])
       setXPData(xp)
-      setXPHistory(history)
+      setXPHistory(history || [])
 
       // Check for recent level up
       if (xp && xp.level_up_at) {
@@ -40,7 +59,12 @@ const LevelSystem = () => {
       }
     } catch (error: any) {
       console.error('Error loading XP data:', error)
-      toast.error('Failed to load level data')
+      // Don't show error toast if gamification is disabled or tables don't exist
+      if (error.code !== 'PGRST116' && error.code !== '42P01' && !error.message?.includes('relation') && !error.message?.includes('permission')) {
+        toast.error('Failed to load level data')
+      }
+      setXPData(null)
+      setXPHistory([])
     } finally {
       setLoading(false)
     }
@@ -67,8 +91,11 @@ const LevelSystem = () => {
     return (
       <div className="card text-center py-12">
         <Star className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500">No level data available yet</p>
-        <p className="text-sm text-gray-400 mt-2">Start receiving assessments to earn XP!</p>
+        <p className="text-gray-500 mb-2">No level data available yet</p>
+        <p className="text-sm text-gray-400">Start receiving assessments to earn XP!</p>
+        <p className="text-xs text-gray-400 mt-4">
+          {!isGamificationEnabled() && 'Note: Gamification may be disabled. Contact your administrator.'}
+        </p>
       </div>
     )
   }

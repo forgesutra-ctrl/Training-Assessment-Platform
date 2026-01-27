@@ -36,19 +36,41 @@ export const fetchAllBadges = async (): Promise<Badge[]> => {
  * Fetch user's earned badges
  */
 export const fetchUserBadges = async (userId: string): Promise<UserBadge[]> => {
-  const { data, error } = await supabase
+  // Fetch user badges first
+  const { data: userBadges, error: badgesError } = await supabase
     .from('user_badges')
-    .select(`
-      *,
-      badge:badges(*)
-    `)
+    .select('*')
     .eq('user_id', userId)
     .order('earned_at', { ascending: false })
 
-  if (error) throw error
-  return (data || []).map((ub: any) => ({
+  if (badgesError) throw badgesError
+
+  if (!userBadges || userBadges.length === 0) {
+    return []
+  }
+
+  // Fetch badge details separately
+  const badgeIds = [...new Set(userBadges.map((ub: any) => ub.badge_id).filter(Boolean))]
+  let badgeMap = new Map<string, any>()
+
+  if (badgeIds.length > 0) {
+    let query = supabase.from('badges').select('*')
+    const { data: badges, error: badgeDetailsError } = badgeIds.length === 1
+      ? await query.eq('id', badgeIds[0])
+      : await query.in('id', badgeIds)
+
+    if (!badgeDetailsError && badges) {
+      const badgesArray = Array.isArray(badges) ? badges : [badges]
+      badgesArray.forEach((badge: any) => {
+        badgeMap.set(badge.id, badge)
+      })
+    }
+  }
+
+  // Combine user badges with badge details
+  return userBadges.map((ub: any) => ({
     ...ub,
-    badge: ub.badge,
+    badge: badgeMap.get(ub.badge_id) || null,
   }))
 }
 
