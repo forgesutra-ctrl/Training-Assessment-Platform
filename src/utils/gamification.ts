@@ -324,19 +324,34 @@ export const getLevelName = (level: number): string => {
  * Fetch user goals
  */
 export const fetchUserGoals = async (userId: string): Promise<Goal[]> => {
-  const { data, error } = await supabase
-    .from('goals')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
+  try {
+    const { data, error } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
 
-  if (error) throw error
+    if (error) {
+      // Table doesn't exist or RLS blocks access
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+        console.warn('Goals table not accessible:', error.message)
+        return []
+      }
+      throw error
+    }
 
-  // Calculate progress for each goal
-  return (data || []).map((goal) => ({
-    ...goal,
-    progress: calculateGoalProgress(goal),
-  }))
+    // Calculate progress for each goal
+    return (data || []).map((goal) => ({
+      ...goal,
+      progress: calculateGoalProgress(goal),
+    }))
+  } catch (error: any) {
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      console.warn('Goals table not accessible:', error.message)
+      return []
+    }
+    throw error
+  }
 }
 
 /**
@@ -495,18 +510,30 @@ export const fetchLeaderboard = async (
  * Get leaderboard preference
  */
 export const getLeaderboardPreference = async (userId: string): Promise<LeaderboardPreference | null> => {
-  const { data, error } = await supabase
-    .from('leaderboard_preferences')
-    .select('*')
-    .eq('user_id', userId)
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from('leaderboard_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .single()
 
-  if (error) {
-    if (error.code === 'PGRST116') return null
+    if (error) {
+      // Table doesn't exist, RLS blocks access, or record not found
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+        console.warn('Leaderboard preferences table not accessible:', error.message)
+        return null
+      }
+      throw error
+    }
+
+    return data
+  } catch (error: any) {
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      console.warn('Leaderboard preferences table not accessible:', error.message)
+      return null
+    }
     throw error
   }
-
-  return data
 }
 
 /**
