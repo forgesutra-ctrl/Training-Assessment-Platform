@@ -39,30 +39,51 @@ export const fetchManagerAssessments = async (
   managerId: string,
   limit: number = 10
 ): Promise<AssessmentWithDetails[]> => {
-  const { data, error } = await supabase
+  // First, fetch assessments
+  const { data: assessmentsData, error: assessmentsError } = await supabase
     .from('assessments')
-    .select(`
-      *,
-      trainer:profiles!trainer_id(id, full_name, email),
-      assessor:profiles!assessor_id(id, full_name, email)
-    `)
+    .select('*')
     .eq('assessor_id', managerId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (error) {
-    console.error('Error fetching manager assessments:', error)
-    throw error
+  if (assessmentsError) {
+    console.error('Error fetching manager assessments:', assessmentsError)
+    throw assessmentsError
   }
 
+  if (!assessmentsData || assessmentsData.length === 0) {
+    return []
+  }
+
+  // Get unique trainer and assessor IDs
+  const trainerIds = [...new Set(assessmentsData.map((a: any) => a.trainer_id).filter(Boolean))]
+  const assessorIds = [...new Set(assessmentsData.map((a: any) => a.assessor_id).filter(Boolean))]
+
+  // Fetch trainer profiles
+  const { data: trainerProfiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', trainerIds)
+
+  // Fetch assessor profiles
+  const { data: assessorProfiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', assessorIds)
+
+  // Create lookup maps
+  const trainerMap = new Map((trainerProfiles || []).map((p: any) => [p.id, p]))
+  const assessorMap = new Map((assessorProfiles || []).map((p: any) => [p.id, p]))
+
   // Calculate average score using 21-parameter system and format data
-  const assessments: AssessmentWithDetails[] = (data || []).map((assessment: any) => {
+  const assessments: AssessmentWithDetails[] = assessmentsData.map((assessment: any) => {
     // Use the new 21-parameter calculation
     const average = calculateAssessmentAverage(assessment as AssessmentWithDetails)
 
-    // Extract trainer and assessor names with better error handling
-    const trainer = Array.isArray(assessment.trainer) ? assessment.trainer[0] : assessment.trainer
-    const assessor = Array.isArray(assessment.assessor) ? assessment.assessor[0] : assessment.assessor
+    // Get trainer and assessor from maps
+    const trainer = trainerMap.get(assessment.trainer_id)
+    const assessor = assessorMap.get(assessment.assessor_id)
 
     return {
       ...assessment,
@@ -125,26 +146,32 @@ export const fetchMonthlyStats = async (managerId: string) => {
 export const fetchAssessmentDetails = async (
   assessmentId: string
 ): Promise<AssessmentWithDetails | null> => {
-  const { data, error } = await supabase
+  // Fetch assessment
+  const { data: assessment, error: assessmentError } = await supabase
     .from('assessments')
-    .select(`
-      *,
-      trainer:profiles!trainer_id(full_name),
-      assessor:profiles!assessor_id(full_name)
-    `)
+    .select('*')
     .eq('id', assessmentId)
     .single()
 
-  if (error) throw error
-  if (!data) return null
+  if (assessmentError) throw assessmentError
+  if (!assessment) return null
+
+  // Fetch trainer and assessor profiles separately
+  const [trainerResult, assessorResult] = await Promise.all([
+    supabase.from('profiles').select('id, full_name, email').eq('id', assessment.trainer_id).single(),
+    supabase.from('profiles').select('id, full_name, email').eq('id', assessment.assessor_id).single(),
+  ])
+
+  const trainer = trainerResult.data
+  const assessor = assessorResult.data
 
   // Use 21-parameter calculation
-  const average = calculateAssessmentAverage(data as AssessmentWithDetails)
+  const average = calculateAssessmentAverage(assessment as AssessmentWithDetails)
 
   return {
-    ...data,
-    trainer_name: data.trainer?.full_name || 'Unknown Trainer',
-    assessor_name: data.assessor?.full_name || 'Unknown Assessor',
+    ...assessment,
+    trainer_name: trainer?.full_name || trainer?.email || 'Unknown Trainer',
+    assessor_name: assessor?.full_name || assessor?.email || 'Unknown Assessor',
     average_score: average,
   }
 }
