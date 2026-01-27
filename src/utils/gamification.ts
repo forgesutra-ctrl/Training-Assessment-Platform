@@ -189,24 +189,37 @@ export const checkAndAwardBadges = async (userId: string, assessments: any[]): P
  * Fetch user XP and level
  */
 export const fetchUserXP = async (userId: string): Promise<UserXP | null> => {
-  const { data, error } = await supabase.from('user_xp').select('*').eq('user_id', userId).single()
+  try {
+    const { data, error } = await supabase.from('user_xp').select('*').eq('user_id', userId).single()
 
-  if (error) {
-    if (error.code === 'PGRST116') return null // Not found
+    if (error) {
+      // Table doesn't exist or RLS blocks access
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+        console.warn('XP table not accessible:', error.message)
+        return null
+      }
+      throw error
+    }
+
+    if (!data) return null
+
+    // Calculate XP for next level
+    const xpForNext = getXPForNextLevel(data.current_level)
+    const xpInCurrentLevel = data.total_xp - getTotalXPForLevel(data.current_level - 1)
+    const progress = xpForNext > 0 ? (xpInCurrentLevel / xpForNext) * 100 : 100
+
+    return {
+      ...data,
+      xp_for_next_level: xpForNext,
+      progress_to_next_level: Math.min(100, Math.max(0, progress)),
+    }
+  } catch (error: any) {
+    // Handle any unexpected errors gracefully
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      console.warn('XP table not accessible:', error.message)
+      return null
+    }
     throw error
-  }
-
-  if (!data) return null
-
-  // Calculate XP for next level
-  const xpForNext = getXPForNextLevel(data.current_level)
-  const xpInCurrentLevel = data.total_xp - getTotalXPForLevel(data.current_level - 1)
-  const progress = xpForNext > 0 ? (xpInCurrentLevel / xpForNext) * 100 : 100
-
-  return {
-    ...data,
-    xp_for_next_level: xpForNext,
-    progress_to_next_level: Math.min(100, Math.max(0, progress)),
   }
 }
 
@@ -493,13 +506,29 @@ export const updateLeaderboardPreference = async (
  * Fetch XP history
  */
 export const fetchXPHistory = async (userId: string, limit: number = 20): Promise<XPHistory[]> => {
-  const { data, error } = await supabase
-    .from('xp_history')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
+  try {
+    const { data, error } = await supabase
+      .from('xp_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
 
-  if (error) throw error
-  return data || []
+    if (error) {
+      // Table doesn't exist or RLS blocks access
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+        console.warn('XP history table not accessible:', error.message)
+        return []
+      }
+      throw error
+    }
+    return data || []
+  } catch (error: any) {
+    // Handle any unexpected errors gracefully
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      console.warn('XP history table not accessible:', error.message)
+      return []
+    }
+    throw error
+  }
 }
