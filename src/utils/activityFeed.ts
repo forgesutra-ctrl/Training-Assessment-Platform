@@ -31,56 +31,86 @@ export const fetchRecentActivity = async (limit: number = 20): Promise<ActivityI
 
   try {
     // Fetch recent assessments
-    const { data: assessments } = await supabase
+    const { data: assessments, error: assessmentsError } = await supabase
       .from('assessments')
-      .select(`
-        id,
-        assessment_date,
-        assessor_id,
-        trainer_id,
-        assessor:profiles!assessor_id(full_name, role),
-        trainer:profiles!trainer_id(full_name)
-      `)
+      .select('id, assessment_date, assessor_id, trainer_id, created_at')
       .order('created_at', { ascending: false })
       .limit(limit)
 
-    if (assessments) {
-      for (const assessment of assessments) {
-        const assessor = Array.isArray(assessment.assessor) ? assessment.assessor[0] : assessment.assessor
-        const trainer = Array.isArray(assessment.trainer) ? assessment.trainer[0] : assessment.trainer
+    if (assessmentsError) {
+      console.error('Error fetching assessments for activity feed:', assessmentsError)
+      return activities
+    }
 
-        if (assessor && trainer) {
-          // Calculate average rating
-          const avg =
-            (assessment.trainers_readiness +
-              assessment.communication_skills +
-              assessment.domain_expertise +
-              assessment.knowledge_displayed +
-              assessment.people_management +
-              assessment.technical_skills) /
-            6
+    if (!assessments || assessments.length === 0) {
+      return activities
+    }
 
-          activities.push({
-            id: assessment.id,
-            type: 'assessment_created',
-            actor: {
-              id: assessment.assessor_id,
-              name: assessor.full_name,
-              role: assessor.role || 'manager',
-            },
-            target: {
-              id: assessment.trainer_id,
-              name: trainer.full_name,
-              type: 'trainer',
-            },
-            metadata: {
-              rating: avg.toFixed(2),
-              assessmentDate: assessment.assessment_date,
-            },
-            timestamp: new Date(assessment.created_at || assessment.assessment_date),
-            message: `${assessor.full_name} assessed ${trainer.full_name} - Rating: ${avg.toFixed(2)}/5.0`,
-          })
-        }
+    // Get unique assessor and trainer IDs
+    const assessorIds = [...new Set(assessments.map((a: any) => a.assessor_id).filter(Boolean))]
+    const trainerIds = [...new Set(assessments.map((a: any) => a.trainer_id).filter(Boolean))]
+
+    // Fetch profiles separately
+    let assessorMap = new Map<string, any>()
+    let trainerMap = new Map<string, any>()
+
+    if (assessorIds.length > 0) {
+      const { data: assessors, error: assessorsError } = await supabase
+        .from('profiles')
+        .select('id, full_name, role')
+        .in('id', assessorIds)
+      
+      if (!assessorsError && assessors) {
+        assessors.forEach((assessor: any) => {
+          assessorMap.set(assessor.id, assessor)
+        })
+      }
+    }
+
+    if (trainerIds.length > 0) {
+      const { data: trainers, error: trainersError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', trainerIds)
+      
+      if (!trainersError && trainers) {
+        trainers.forEach((trainer: any) => {
+          trainerMap.set(trainer.id, trainer)
+        })
+      }
+    }
+
+    // Import calculateAssessmentAverage for 21-parameter calculation
+    const { calculateAssessmentAverage } = await import('@/utils/trainerStats')
+
+    for (const assessment of assessments) {
+      const assessor = assessorMap.get(assessment.assessor_id)
+      const trainer = trainerMap.get(assessment.trainer_id)
+
+      if (assessor && trainer) {
+        // Calculate average rating using 21-parameter system
+        const avg = calculateAssessmentAverage(assessment as any)
+
+        activities.push({
+          id: assessment.id,
+          type: 'assessment_created',
+          actor: {
+            id: assessment.assessor_id,
+            name: assessor.full_name,
+            role: assessor.role || 'manager',
+          },
+          target: {
+            id: assessment.trainer_id,
+            name: trainer.full_name,
+            type: 'trainer',
+          },
+          metadata: {
+            rating: avg.toFixed(2),
+            assessmentDate: assessment.assessment_date,
+          },
+          timestamp: new Date(assessment.created_at || assessment.assessment_date),
+          message: `${assessor.full_name} assessed ${trainer.full_name} - Rating: ${avg.toFixed(2)}/5.0`,
+        })
       }
     }
   } catch (error) {
@@ -108,57 +138,44 @@ export const subscribeToActivity = (
       },
       async (payload) => {
         try {
-          // Fetch the new assessment with related data
-          const { data: assessment } = await supabase
-            .from('assessments')
-            .select(`
-              id,
-              assessment_date,
-              assessor_id,
-              trainer_id,
-              assessor:profiles!assessor_id(full_name, role),
-              trainer:profiles!trainer_id(full_name)
-            `)
-            .eq('id', payload.new.id)
-            .single()
+          const assessment = payload.new as any
 
-          if (assessment) {
-            const assessor = Array.isArray(assessment.assessor) ? assessment.assessor[0] : assessment.assessor
-            const trainer = Array.isArray(assessment.trainer) ? assessment.trainer[0] : assessment.trainer
+          // Fetch profiles separately
+          const [assessorResult, trainerResult] = await Promise.all([
+            supabase.from('profiles').select('id, full_name, role').eq('id', assessment.assessor_id).single(),
+            supabase.from('profiles').select('id, full_name').eq('id', assessment.trainer_id).single(),
+          ])
 
-            if (assessor && trainer) {
-              const avg =
-                (assessment.trainers_readiness +
-                  assessment.communication_skills +
-                  assessment.domain_expertise +
-                  assessment.knowledge_displayed +
-                  assessment.people_management +
-                  assessment.technical_skills) /
-                6
+          const assessor = assessorResult.data
+          const trainer = trainerResult.data
 
-              const activity: ActivityItem = {
-                id: assessment.id,
-                type: 'assessment_created',
-                actor: {
-                  id: assessment.assessor_id,
-                  name: assessor.full_name,
-                  role: assessor.role || 'manager',
-                },
-                target: {
-                  id: assessment.trainer_id,
-                  name: trainer.full_name,
-                  type: 'trainer',
-                },
-                metadata: {
-                  rating: avg.toFixed(2),
-                  assessmentDate: assessment.assessment_date,
-                },
-                timestamp: new Date(),
-                message: `${assessor.full_name} assessed ${trainer.full_name} - Rating: ${avg.toFixed(2)}/5.0`,
-              }
+          if (assessor && trainer) {
+            // Import calculateAssessmentAverage for 21-parameter calculation
+            const { calculateAssessmentAverage } = await import('@/utils/trainerStats')
+            const avg = calculateAssessmentAverage(assessment as any)
 
-              callback(activity)
+            const activity: ActivityItem = {
+              id: assessment.id,
+              type: 'assessment_created',
+              actor: {
+                id: assessment.assessor_id,
+                name: assessor.full_name,
+                role: assessor.role || 'manager',
+              },
+              target: {
+                id: assessment.trainer_id,
+                name: trainer.full_name,
+                type: 'trainer',
+              },
+              metadata: {
+                rating: avg.toFixed(2),
+                assessmentDate: assessment.assessment_date,
+              },
+              timestamp: new Date(),
+              message: `${assessor.full_name} assessed ${trainer.full_name} - Rating: ${avg.toFixed(2)}/5.0`,
             }
+
+            callback(activity)
           }
         } catch (error) {
           console.error('Error processing activity update:', error)
