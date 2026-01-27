@@ -466,38 +466,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (data.user) {
         // Set user and session immediately so navigation can proceed
-        console.log('✅ Authentication successful, setting user state')
         setUser(data.user)
         setSession(data.session)
         setLoading(false) // Set loading to false immediately so navigation can proceed
         
-        // Fetch profile in background (don't block)
-        console.log('🔄 Fetching profile in background for user:', data.user.id)
-        
-        // Start profile fetch but don't wait for it
+        // Fetch profile in background (don't block) - will be handled by onAuthStateChange too
         fetchProfile(data.user.id, true)
           .then((profileData) => {
             if (profileData) {
-              console.log('✅ Profile loaded in background:', profileData)
               setProfile(profileData)
-            } else {
-              console.warn('⚠️ Profile not found, will be fetched via onAuthStateChange')
             }
           })
-          .catch((profileError: any) => {
-            // Ignore AbortError
-            if (profileError.name === 'AbortError' || profileError.message?.includes('aborted')) {
-              return
-            }
-            console.error('❌ Error fetching profile in background:', {
-              code: profileError.code,
-              message: profileError.message,
-              details: profileError.details,
-            })
+          .catch(() => {
+            // Ignore errors - profile will be fetched via onAuthStateChange
           })
         
         // Return success immediately - don't wait for profile
-        console.log('✅ SignIn complete - navigation can proceed')
         return { success: true }
       }
 

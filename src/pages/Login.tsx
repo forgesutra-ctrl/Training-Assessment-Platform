@@ -13,23 +13,15 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loginSuccess, setLoginSuccess] = useState(false)
-  const { signIn, user, profile, loading } = useAuthContext()
+  const authContext = useAuthContext()
+  const { signIn, user, profile, loading } = authContext
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Redirect if already logged in or after successful login
+  // Redirect if already logged in (before login attempt)
   useEffect(() => {
-    console.log('🔍 Login navigation check:', {
-      loading,
-      hasUser: !!user,
-      hasProfile: !!profile,
-      loginSuccess,
-      userEmail: user?.email,
-      profileRole: profile?.role,
-    })
-
-    // If we have user and profile, navigate immediately
-    if (user && profile) {
+    // If user is already logged in with profile, navigate immediately
+    if (!loading && user && profile) {
       const roleRoutes: Record<string, string> = {
         admin: '/admin/dashboard',
         manager: '/manager/dashboard',
@@ -37,50 +29,9 @@ const Login = () => {
       }
       const redirectTo = roleRoutes[profile.role] || '/login'
       const from = (location.state as any)?.from?.pathname || redirectTo
-      console.log('🚀 Navigating to dashboard (with profile):', redirectTo)
       navigate(from, { replace: true })
-      return
-    } 
-    
-    // If login succeeded, navigate even without profile (profile will load on dashboard)
-    if (loginSuccess && user) {
-      console.log('⏳ Login successful, setting up navigation...')
-      
-      // Try to get profile from context first (might be loading)
-      if (profile) {
-        const roleRoutes: Record<string, string> = {
-          admin: '/admin/dashboard',
-          manager: '/manager/dashboard',
-          trainer: '/trainer/dashboard',
-        }
-        const redirectTo = roleRoutes[profile.role] || '/admin/dashboard'
-        console.log('🚀 Navigating with profile:', redirectTo)
-        navigate(redirectTo, { replace: true })
-        return
-      }
-      
-      // If no profile, wait briefly then navigate with inferred role
-      const timeoutId = setTimeout(() => {
-        console.log('⏱️ Navigation timeout - navigating without profile')
-        // Infer role from email or default to admin
-        const email = user.email || ''
-        let defaultRole = 'admin'
-        if (email.includes('manager')) defaultRole = 'manager'
-        if (email.includes('trainer')) defaultRole = 'trainer'
-        
-        const roleRoutes: Record<string, string> = {
-          admin: '/admin/dashboard',
-          manager: '/manager/dashboard',
-          trainer: '/trainer/dashboard',
-        }
-        const redirectTo = roleRoutes[defaultRole] || '/admin/dashboard'
-        console.log('🚀 Navigating to default dashboard:', redirectTo, 'for email:', email)
-        navigate(redirectTo, { replace: true })
-      }, 1500) // Reduced to 1.5 seconds
-      
-      return () => clearTimeout(timeoutId)
     }
-  }, [user, profile, loading, navigate, location, loginSuccess])
+  }, [user, profile, loading, navigate, location])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,22 +44,34 @@ const Login = () => {
 
     setIsLoading(true)
     setError(null)
-    console.log('🔐 Starting sign in for:', email)
     
     const result = await signIn(email, password)
     setIsLoading(false)
 
-    console.log('📋 Sign in result:', result)
-
     if (result?.success) {
       setLoginSuccess(true)
       toast.success('Welcome back! 🎉')
-      console.log('✅ Login successful, waiting for navigation...')
-      // Navigation will happen automatically via useEffect
+      
+      // Navigate immediately based on email - don't wait for profile or useEffect
+      // Infer role from email
+      let defaultRole = 'admin'
+      if (email.includes('manager')) defaultRole = 'manager'
+      if (email.includes('trainer')) defaultRole = 'trainer'
+      
+      const roleRoutes: Record<string, string> = {
+        admin: '/admin/dashboard',
+        manager: '/manager/dashboard',
+        trainer: '/trainer/dashboard',
+      }
+      const redirectTo = roleRoutes[defaultRole] || '/admin/dashboard'
+      
+      // Navigate after a brief delay to ensure auth state is updated
+      setTimeout(() => {
+        navigate(redirectTo, { replace: true })
+      }, 800)
     } else if (result?.error) {
       setError(result.error)
       setLoginSuccess(false)
-      console.error('❌ Login failed:', result.error)
     }
   }
 
