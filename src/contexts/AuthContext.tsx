@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true)
 
   // Fetch user profile from profiles table
-  const fetchProfile = async (userId: string): Promise<Profile | null> => {
+  const fetchProfile = async (userId: string, autoCreate: boolean = true): Promise<Profile | null> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -48,6 +48,42 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Ignore AbortError
         if (error.name === 'AbortError' || error.message?.includes('aborted')) {
           return null
+        }
+        
+        // If profile not found and autoCreate is enabled, try to create it
+        if (error.code === 'PGRST116' && autoCreate) {
+          console.warn('⚠️ Profile not found for user:', userId)
+          console.log('💡 Attempting to auto-create profile...')
+          
+          // Get user info from auth
+          const { data: authData } = await supabase.auth.getUser()
+          if (authData?.user) {
+            const email = authData.user.email || ''
+            const fullName = authData.user.user_metadata?.full_name || email.split('@')[0]
+            const role = authData.user.user_metadata?.role || 'trainer'
+            
+            // Try to create profile
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert({
+                id: userId,
+                full_name: fullName,
+                role: role,
+                team_id: null,
+                reporting_manager_id: null,
+              })
+              .select()
+              .single()
+            
+            if (createError) {
+              console.error('❌ Failed to auto-create profile:', createError)
+              console.error('💡 Please run the seed script or create profile manually in Supabase')
+              return null
+            }
+            
+            console.log('✅ Profile auto-created successfully:', newProfile)
+            return newProfile as Profile
+          }
         }
         
         console.error('❌ Error fetching profile:', {
