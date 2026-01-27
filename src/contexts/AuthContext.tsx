@@ -124,9 +124,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (!data) {
         console.warn('⚠️ Profile query returned no data for user:', userId)
+        console.warn('💡 This might mean:')
+        console.warn('   1. Profile record exists but is NULL')
+        console.warn('   2. RLS policy is blocking access')
+        console.warn('   3. Profile was deleted')
         return null
       }
 
+      console.log('✅ Profile fetched successfully:', {
+        id: data.id,
+        full_name: data.full_name,
+        role: data.role,
+      })
+      
       return data as Profile
     } catch (error: any) {
       // Ignore AbortError
@@ -229,14 +239,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
         if (session?.user) {
           try {
-            const profileData = await fetchProfile(session.user.id)
-            setProfile(profileData)
+            console.log('🔄 Fetching profile for user:', session.user.id, session.user.email)
+            const profileData = await fetchProfile(session.user.id, true)
+            if (profileData) {
+              console.log('✅ Profile loaded in auth state change:', profileData)
+              setProfile(profileData)
+            } else {
+              console.error('❌ Profile is null after fetchProfile call')
+              console.error('   User ID:', session.user.id)
+              console.error('   Email:', session.user.email)
+              console.error('   💡 Run diagnostic queries in Supabase to check profile status')
+            }
           } catch (error: any) {
             // Ignore AbortError - it's expected when component unmounts
             if (error.name === 'AbortError' || error.message?.includes('aborted')) {
               return
             }
-            console.error('Error fetching profile in auth state change:', error)
+            console.error('❌ Error fetching profile in auth state change:', error)
+            console.error('   User ID:', session?.user?.id)
+            console.error('   Email:', session?.user?.email)
           }
         } else {
           setProfile(null)
