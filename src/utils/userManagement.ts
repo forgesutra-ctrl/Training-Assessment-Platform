@@ -120,17 +120,7 @@ export const fetchAllUsers = async (filters?: {
 }): Promise<UserForManagement[]> => {
   let query = supabase
     .from('profiles')
-    .select(`
-      id,
-      full_name,
-      role,
-      team_id,
-      reporting_manager_id,
-      created_at,
-      updated_at,
-      teams(team_name),
-      reporting_manager:profiles!reporting_manager_id(full_name)
-    `)
+    .select('id, full_name, role, team_id, reporting_manager_id, created_at, updated_at')
     .order('created_at', { ascending: false })
 
   if (filters?.role && filters.role !== 'all') {
@@ -141,16 +131,49 @@ export const fetchAllUsers = async (filters?: {
     query = query.eq('team_id', filters.team_id)
   }
 
-  const { data, error } = await query
+  const { data: usersData, error } = await query
 
   if (error) throw error
 
-  // Note: We can't use supabase.auth.admin.listUsers() from the client (requires service role key)
-  // Instead, we'll get emails from a database function or skip email display
-  // For now, we'll work with profiles only and note that email fetching requires backend
-  
+  if (!usersData || usersData.length === 0) {
+    return []
+  }
+
+  // Fetch teams and reporting managers separately
+  const teamIds = [...new Set(usersData.map((u: any) => u.team_id).filter(Boolean))]
+  const managerIds = [...new Set(usersData.map((u: any) => u.reporting_manager_id).filter(Boolean))]
+
+  let teamMap = new Map<string, any>()
+  let managerMap = new Map<string, any>()
+
+  if (teamIds.length > 0) {
+    const { data: teams, error: teamsError } = await supabase
+      .from('teams')
+      .select('id, team_name')
+      .in('id', teamIds)
+    
+    if (!teamsError && teams) {
+      teams.forEach((team: any) => {
+        teamMap.set(team.id, team)
+      })
+    }
+  }
+
+  if (managerIds.length > 0) {
+    const { data: managers, error: managersError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', managerIds)
+    
+    if (!managersError && managers) {
+      managers.forEach((manager: any) => {
+        managerMap.set(manager.id, manager)
+      })
+    }
+  }
+
   // Apply search filter if provided
-  let filteredData = data || []
+  let filteredData = usersData
   if (filters?.search) {
     const searchLower = filters.search.toLowerCase()
     filteredData = filteredData.filter((profile: any) => {
@@ -159,11 +182,17 @@ export const fetchAllUsers = async (filters?: {
     })
   }
 
+  // Note: We can't use supabase.auth.admin.listUsers() from the client (requires service role key)
+  // Instead, we'll get emails from a database function or skip email display
+  // For now, we'll work with profiles only and note that email fetching requires backend
+
   const users: UserForManagement[] = filteredData.map((profile: any) => {
     // Email fetching requires service role key, so we'll use a placeholder
     // In production, you'd want to create a database function or use backend API
     const email = 'N/A' // Would need backend API or database function to get email
     const status = 'active' // Default to active (can't check banned status without admin API)
+    const team = profile.team_id ? teamMap.get(profile.team_id) : null
+    const manager = profile.reporting_manager_id ? managerMap.get(profile.reporting_manager_id) : null
 
     return {
       id: profile.id,
@@ -171,9 +200,9 @@ export const fetchAllUsers = async (filters?: {
       full_name: profile.full_name,
       role: profile.role,
       team_id: profile.team_id,
-      team_name: Array.isArray(profile.teams) ? profile.teams[0]?.team_name : (profile.teams as any)?.team_name || null,
+      team_name: team?.team_name || null,
       reporting_manager_id: profile.reporting_manager_id,
-      reporting_manager_name: (profile.reporting_manager as any)?.full_name || null,
+      reporting_manager_name: manager?.full_name || null,
       status: status as 'active' | 'inactive',
       created_at: profile.created_at,
       updated_at: profile.updated_at,
