@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Users, FileText, Star, TrendingUp, LogOut, Menu, X, BarChart3, Activity, Clock, UserCog, FileText as FileTextIcon, Brain, AlertTriangle, LayoutDashboard, GitCompare, FileText as ReportIcon, BarChart2, Sliders, ChevronRight, Settings, Shield } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchPlatformStats } from '@/utils/adminQueries'
 import { PlatformStats } from '@/types'
 import OverviewTab from '@/components/admin/OverviewTab'
@@ -27,6 +27,8 @@ import toast from 'react-hot-toast'
 
 type Tab = 'overview' | 'trainer-performance' | 'manager-activity' | 'time-analysis' | 'user-management' | 'audit-log' | 'predictive-analytics' | 'trend-alerts' | 'data-studio' | 'comparative-analysis' | 'report-templates' | 'correlation-analysis' | 'scenario-modeling'
 
+const VALID_TABS: Tab[] = ['overview', 'trainer-performance', 'manager-activity', 'time-analysis', 'user-management', 'audit-log', 'predictive-analytics', 'trend-alerts', 'data-studio', 'comparative-analysis', 'report-templates', 'correlation-analysis', 'scenario-modeling']
+
 interface TabGroup {
   title: string
   icon: any
@@ -36,7 +38,13 @@ interface TabGroup {
 const AdminDashboard = () => {
   const { user, profile, signOut } = useAuthContext()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<Tab>('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  
+  // Get tab from URL query parameter, default to 'overview'
+  const tabFromUrl = searchParams.get('tab') as Tab | null
+  const initialTab = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview'
+  
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<PlatformStats>({
@@ -45,6 +53,20 @@ const AdminDashboard = () => {
     platformAverageRating: 0,
     assessmentActivityRate: 0,
   })
+
+  // Sync activeTab with URL query parameter on mount and when URL changes
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab') as Tab | null
+    if (tabFromUrl && VALID_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [searchParams, activeTab])
+
+  // Update URL when tab changes
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab)
+    setSearchParams({ tab })
+  }
 
   useEffect(() => {
     const loadStats = async () => {
@@ -187,7 +209,7 @@ const AdminDashboard = () => {
                         <button
                           key={tab.id}
                           onClick={() => {
-                            setActiveTab(tab.id)
+                            handleTabChange(tab.id)
                             if (window.innerWidth < 1024) setSidebarOpen(false)
                           }}
                           className={`
