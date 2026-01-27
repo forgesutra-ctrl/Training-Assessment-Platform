@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Calendar, User, Save, AlertCircle } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
@@ -6,6 +7,12 @@ import { supabase } from '@/lib/supabase'
 import StarRating from './StarRating'
 import LoadingSpinner from './LoadingSpinner'
 import AIFeedbackAssistant from './AIFeedbackAssistant'
+import SuccessAnimation from './animations/SuccessAnimation'
+import Confetti from './animations/Confetti'
+import AnimatedButton from './ui/AnimatedButton'
+import AnimatedCard from './ui/AnimatedCard'
+import ShakeOnError from './ui/ShakeOnError'
+import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 interface Trainer {
@@ -205,7 +212,16 @@ const AssessmentForm = () => {
         return
       }
 
-      toast.success('Assessment submitted successfully!')
+      // Celebration!
+      setConfettiTrigger(true)
+      setShowSuccess(true)
+      soundManager.playSuccess()
+      toast.success('Assessment submitted successfully! 🎉')
+      
+      setTimeout(() => {
+        setConfettiTrigger(false)
+        setShowSuccess(false)
+      }, 3000)
       
       // Clear form
       setFormData({
@@ -275,7 +291,7 @@ const AssessmentForm = () => {
     const commentError = errors[commentField as keyof FormErrors]
 
     return (
-      <div className="card space-y-4">
+      <AnimatedCard className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-1">{title}</h3>
           {description && (
@@ -299,12 +315,14 @@ const AssessmentForm = () => {
               </span>
             </label>
             {rating > 0 && (
-              <AIFeedbackAssistant
-                rating={rating}
-                parameter={title}
-                onSuggestionSelect={(suggestion) => handleCommentChange(commentField, suggestion)}
-                currentValue={comment}
-              />
+              <div className="flex-shrink-0">
+                <AIFeedbackAssistant
+                  rating={rating}
+                  parameter={title}
+                  onSuggestionSelect={(suggestion) => handleCommentChange(commentField, suggestion)}
+                  currentValue={comment}
+                />
+              </div>
             )}
           </div>
           <textarea
@@ -506,10 +524,13 @@ const AssessmentForm = () => {
             >
               Cancel
             </button>
-            <button
+            <AnimatedButton
               type="submit"
+              variant="primary"
+              size="lg"
               disabled={submitting}
-              className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1"
+              onClick={() => soundManager.playClick()}
             >
               {submitting ? (
                 <>
@@ -522,7 +543,7 @@ const AssessmentForm = () => {
                   Submit Assessment
                 </>
               )}
-            </button>
+            </AnimatedButton>
           </div>
         </form>
       </div>

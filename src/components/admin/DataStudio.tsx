@@ -1,9 +1,30 @@
 import { useState, useEffect } from 'react'
-import { Plus, Save, Download, Settings, BarChart3, LineChart, PieChart, TrendingUp } from 'lucide-react'
+import { Plus, Save, Download, Settings, BarChart3, LineChart, PieChart, TrendingUp, X } from 'lucide-react'
 import { fetchAllTrainersWithStats, fetchMonthlyTrends } from '@/utils/adminQueries'
 import { supabase } from '@/lib/supabase'
+import { exportToExcel, exportToCSV } from '@/utils/reporting'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
+import {
+  LineChart as RechartsLineChart,
+  Line,
+  BarChart as RechartsBarChart,
+  Bar,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+} from 'recharts'
 
 interface ChartConfig {
   id: string
@@ -74,9 +95,194 @@ const DataStudio = () => {
     toast.success('Report saved successfully')
   }
 
-  const handleExport = (format: 'excel' | 'pdf' | 'csv') => {
-    toast.success(`Exporting to ${format.toUpperCase()}...`)
-    // Export logic would go here
+  const handleExport = async (format: 'excel' | 'pdf' | 'csv') => {
+    try {
+      if (charts.length === 0) {
+        toast.error('No charts to export')
+        return
+      }
+
+      toast.loading(`Exporting to ${format.toUpperCase()}...`, { id: 'export' })
+
+      if (format === 'csv') {
+        // Export chart data as CSV
+        const csvData = charts.map((chart) => ({
+          'Chart Type': chart.type,
+          'Chart Title': chart.title,
+          'Data Source': chart.dataSource,
+        }))
+        exportToCSV(csvData, `data_studio_${new Date().toISOString().split('T')[0]}`)
+        toast.success('Charts exported to CSV', { id: 'export' })
+      } else if (format === 'excel') {
+        // Export chart data as Excel
+        const excelData: Record<string, any[]> = {}
+        charts.forEach((chart, index) => {
+          excelData[`Chart ${index + 1} - ${chart.title}`] = [
+            { 'Chart Type': chart.type, 'Title': chart.title, 'Data Source': chart.dataSource },
+          ]
+        })
+        await exportToExcel(excelData, `data_studio_${new Date().toISOString().split('T')[0]}`)
+        toast.success('Charts exported to Excel', { id: 'export' })
+      } else {
+        // PDF export would require a library like jsPDF
+        toast.error('PDF export coming soon', { id: 'export' })
+      }
+    } catch (error: any) {
+      console.error('Error exporting:', error)
+      toast.error('Failed to export charts', { id: 'export' })
+    }
+  }
+
+  const renderChart = (chart: ChartConfig) => {
+    if (!availableData.trainers || availableData.trainers.length === 0) {
+      return (
+        <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400">
+          No data available
+        </div>
+      )
+    }
+
+    switch (chart.type) {
+      case 'line':
+        // Line chart: Monthly trends
+        const monthlyData = (availableData.monthlyTrends || []).map((t: any) => ({
+          month: t.month,
+          'Average Score': t.average_rating || 0,
+          'Total Assessments': t.assessment_count || 0,
+        }))
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <RechartsLineChart data={monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="month" stroke="#6b7280" angle={-45} textAnchor="end" height={80} />
+              <YAxis stroke="#6b7280" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                }}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="Average Score"
+                stroke="#6366f1"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="Total Assessments"
+                stroke="#10b981"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            </RechartsLineChart>
+          </ResponsiveContainer>
+        )
+
+      case 'bar':
+        // Bar chart: Trainer performance comparison
+        const trainerData = availableData.trainers
+          .slice(0, 10)
+          .map((t: any) => ({
+            name: t.full_name.length > 15 ? t.full_name.substring(0, 15) + '...' : t.full_name,
+            'All-Time Avg': t.all_time_avg || 0,
+            'Month Avg': t.current_month_avg || 0,
+          }))
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <RechartsBarChart data={trainerData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="name" stroke="#6b7280" angle={-45} textAnchor="end" height={80} />
+              <YAxis stroke="#6b7280" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                }}
+              />
+              <Legend />
+              <Bar dataKey="All-Time Avg" fill="#6366f1" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="Month Avg" fill="#10b981" radius={[8, 8, 0, 0]} />
+            </RechartsBarChart>
+          </ResponsiveContainer>
+        )
+
+      case 'pie':
+        // Pie chart: Team distribution
+        const teamCounts: Record<string, number> = {}
+        availableData.trainers.forEach((t: any) => {
+          const team = t.team_name || 'No Team'
+          teamCounts[team] = (teamCounts[team] || 0) + 1
+        })
+        const pieData = Object.entries(teamCounts).map(([name, value]) => ({ name, value }))
+        const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <RechartsPieChart>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {pieData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </RechartsPieChart>
+          </ResponsiveContainer>
+        )
+
+      case 'radar':
+        // Radar chart: Top trainer skill profile
+        const topTrainer = availableData.trainers[0]
+        if (!topTrainer) return <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400">No data</div>
+        
+        // Simplified - would need actual parameter data
+        const radarData = [
+          { subject: 'Readiness', A: topTrainer.all_time_avg || 0, fullMark: 5 },
+          { subject: 'Communication', A: topTrainer.all_time_avg || 0, fullMark: 5 },
+          { subject: 'Domain', A: topTrainer.all_time_avg || 0, fullMark: 5 },
+          { subject: 'Knowledge', A: topTrainer.all_time_avg || 0, fullMark: 5 },
+          { subject: 'People Mgmt', A: topTrainer.all_time_avg || 0, fullMark: 5 },
+          { subject: 'Technical', A: topTrainer.all_time_avg || 0, fullMark: 5 },
+        ]
+        return (
+          <ResponsiveContainer width="100%" height={300}>
+            <RadarChart data={radarData}>
+              <PolarGrid />
+              <PolarAngleAxis dataKey="subject" stroke="#6b7280" />
+              <PolarRadiusAxis angle={90} domain={[0, 5]} stroke="#6b7280" />
+              <Radar
+                name="Performance"
+                dataKey="A"
+                stroke="#6366f1"
+                fill="#6366f1"
+                fillOpacity={0.6}
+              />
+              <Tooltip />
+            </RadarChart>
+          </ResponsiveContainer>
+        )
+
+      default:
+        return (
+          <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400">
+            Chart type "{chart.type}" coming soon
+          </div>
+        )
+    }
   }
 
   if (loading) {
@@ -164,12 +370,25 @@ const DataStudio = () => {
             <div key={chart.id} className="card">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">{chart.title}</h3>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <Settings className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const updatedCharts = charts.filter((c) => c.id !== chart.id)
+                      setCharts(updatedCharts)
+                      toast.success('Chart removed')
+                    }}
+                    className="text-red-400 hover:text-red-600 transition-colors"
+                    title="Remove chart"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <Settings className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400">
-                {chart.type} Chart Placeholder
+              <div className="bg-white rounded-lg p-4">
+                {renderChart(chart)}
               </div>
             </div>
           ))}

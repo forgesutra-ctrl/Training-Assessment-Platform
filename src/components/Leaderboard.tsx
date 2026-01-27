@@ -5,6 +5,8 @@ import { LeaderboardEntry, LeaderboardPreference } from '@/types'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { fetchAllTrainersWithStats } from '@/utils/adminQueries'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import TrophyAnimation from '@/components/animations/TrophyAnimation'
+import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 const Leaderboard = () => {
@@ -58,6 +60,14 @@ const Leaderboard = () => {
       }
 
       setLeaderboard(entries)
+
+      // Check if user is in top 3
+      const userRank = entries.findIndex((e) => e.user_id === user!.id)
+      if (userRank >= 0 && userRank < 3) {
+        setShowTrophy(true)
+        soundManager.playAchievement()
+        setTimeout(() => setShowTrophy(false), 3000)
+      }
     } catch (error: any) {
       console.error('Error loading leaderboard:', error)
       toast.error('Failed to load leaderboard')
@@ -107,6 +117,14 @@ const Leaderboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Trophy Celebration */}
+      <TrophyAnimation
+        show={showTrophy}
+        title="Top Performer!"
+        subtitle={`You're ranked #${leaderboard.findIndex((e) => e.user_id === user?.id) + 1} on the leaderboard!`}
+        onComplete={() => setShowTrophy(false)}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

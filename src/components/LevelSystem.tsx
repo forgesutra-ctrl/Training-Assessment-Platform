@@ -4,6 +4,8 @@ import { fetchUserXP, fetchXPHistory, getLevelName, calculateLevel } from '@/uti
 import { UserXP, XPHistory } from '@/types'
 import { useAuthContext } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import LevelUpAnimation from '@/components/animations/LevelUpAnimation'
+import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 const LevelSystem = () => {
@@ -36,6 +38,7 @@ const LevelSystem = () => {
         const hoursSince = (now.getTime() - levelUpDate.getTime()) / (1000 * 60 * 60)
         if (hoursSince < 24) {
           setShowLevelUp(true)
+          soundManager.playLevelUp()
         }
       }
     } catch (error: any) {
@@ -77,28 +80,12 @@ const LevelSystem = () => {
 
   return (
     <div className="space-y-6">
-      {/* Level Up Celebration */}
-      {showLevelUp && (
-        <div className="card bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="text-5xl">🎉</div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">Level Up!</h3>
-                <p className="text-gray-600">
-                  You've reached <span className="font-bold">{levelName}</span> (Level {xpData.current_level})
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowLevelUp(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Level Up Animation */}
+      <LevelUpAnimation
+        show={showLevelUp}
+        level={xpData.current_level}
+        onComplete={() => setShowLevelUp(false)}
+      />
 
       {/* Current Level Card */}
       <div className={`card bg-gradient-to-br ${getLevelColor(xpData.current_level)} border-2 border-white shadow-lg`}>

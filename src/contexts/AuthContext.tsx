@@ -110,12 +110,61 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true)
+      
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        const errorMsg = 'Supabase is not configured. Please check your .env file.'
+        console.error('❌', errorMsg)
+        console.error('Missing:', {
+          url: !supabaseUrl,
+          key: !supabaseAnonKey,
+        })
+        toast.error(errorMsg)
+        return { success: false, error: errorMsg }
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
+      if (error) {
+        // Provide more helpful error messages
+        let userFriendlyError = error.message
+        
+        if (error.status === 401) {
+          if (error.message.includes('Invalid API key') || error.message.includes('Invalid API Key')) {
+            userFriendlyError = 'Supabase API key is invalid. Please check your .env file configuration.'
+            console.error('❌ Invalid Supabase API Key!')
+            console.error('This usually means:')
+            console.error('1. Your VITE_SUPABASE_ANON_KEY in .env is incorrect')
+            console.error('2. The key has been rotated/changed in Supabase')
+            console.error('3. You\'re using the wrong project\'s credentials')
+            console.error('\nTo fix:')
+            console.error('1. Go to Supabase Dashboard → Settings → API')
+            console.error('2. Copy the "anon public" key')
+            console.error('3. Update VITE_SUPABASE_ANON_KEY in your .env file')
+            console.error('4. Restart your dev server')
+          } else if (error.message.includes('Invalid login credentials')) {
+            userFriendlyError = 'Invalid email or password. Please check your credentials and try again.'
+          } else if (error.message.includes('Email not confirmed')) {
+            userFriendlyError = 'Please verify your email address before signing in.'
+          } else {
+            userFriendlyError = 'Authentication failed. Please check your credentials.'
+          }
+        }
+        
+        console.error('Sign in error:', {
+          status: error.status,
+          message: error.message,
+          email: email,
+        })
+        
+        throw new Error(userFriendlyError)
+      }
 
       if (data.user) {
         // Fetch profile after successful login
@@ -152,13 +201,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             full_name: fullName,
             role: role,
           },
+          emailRedirectTo: window.location.origin,
         },
       })
 
-      if (authError) throw authError
+      if (authError) {
+        // Provide more helpful error messages
+        let userFriendlyError = authError.message
+        
+        if (authError.status === 429) {
+          // Rate limit exceeded
+          if (authError.message.includes('rate limit') || authError.message.includes('too many')) {
+            userFriendlyError = 'Too many signup attempts. Please wait a few minutes before trying again, or use a different email address.'
+          } else {
+            userFriendlyError = 'Too many requests. Please wait a moment and try again.'
+          }
+        } else if (authError.status === 400) {
+          if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+            userFriendlyError = 'An account with this email already exists. Please use a different email or sign in instead.'
+          } else if (authError.message.includes('password')) {
+            userFriendlyError = 'Password does not meet requirements. Please use a stronger password.'
+          } else if (authError.message.includes('email')) {
+            userFriendlyError = 'Invalid email address. Please check your email and try again.'
+          } else {
+            userFriendlyError = 'Failed to create account. Please check your information and try again.'
+          }
+        }
+        
+        console.error('Sign up error:', {
+          status: authError.status,
+          message: authError.message,
+          email: email,
+        })
+        
+        throw new Error(userFriendlyError)
+      }
 
       if (!authData.user) {
-        throw new Error('User creation failed')
+        throw new Error('User creation failed. Please try again.')
       }
 
       // Create profile entry
@@ -174,10 +254,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (profileError) {
         console.error('Error creating profile:', profileError)
-        // Note: In production, you might want to handle this differently
-        // For now, we'll still allow the user to sign in, but they'll need
-        // an admin to create their profile manually
-        throw new Error('Failed to create user profile. Please contact an administrator.')
+        
+        // Provide specific error messages
+        let profileErrorMessage = 'Failed to create user profile.'
+        
+        if (profileError.code === '42501' || profileError.message.includes('permission denied') || profileError.message.includes('policy')) {
+          profileErrorMessage = 'Permission denied. Please make sure you have the correct RLS policies set up. Run fix-rls-recursion.sql if you haven\'t already.'
+        } else if (profileError.code === '23505' || profileError.message.includes('duplicate')) {
+          profileErrorMessage = 'Profile already exists for this user.'
+        } else if (profileError.code === '23503' || profileError.message.includes('foreign key')) {
+          profileErrorMessage = 'Invalid user ID. Please try signing up again.'
+        }
+        
+        throw new Error(profileErrorMessage)
       }
 
       // Fetch the newly created profile

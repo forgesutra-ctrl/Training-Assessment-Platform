@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
+import AnimatedInput from '@/components/ui/AnimatedInput'
+import AnimatedButton from '@/components/ui/AnimatedButton'
+import ShakeOnError from '@/components/ui/ShakeOnError'
+import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 const Login = () => {
@@ -37,10 +42,13 @@ const Login = () => {
     }
 
     setIsLoading(true)
+    soundManager.playClick()
     const result = await signIn(email, password)
     setIsLoading(false)
 
     if (result?.success && profile) {
+      soundManager.playSuccess()
+      toast.success('Welcome back! 🎉')
       // Navigate based on user role
       const roleRoutes: Record<string, string> = {
         admin: '/admin/dashboard',
@@ -51,6 +59,7 @@ const Login = () => {
       navigate(redirectTo, { replace: true })
     } else if (result?.error) {
       setError(result.error)
+      soundManager.playError()
     }
   }
 
@@ -78,66 +87,58 @@ const Login = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-800">Error</p>
-                  <p className="text-sm text-red-700 mt-1">{error}</p>
-                </div>
-              </div>
-            )}
+            <ShakeOnError hasError={!!error}>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3"
+                >
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800">Error</p>
+                    <p className="text-sm text-red-700 mt-1">{error}</p>
+                  </div>
+                </motion.div>
+              )}
+            </ShakeOnError>
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value)
-                    setError(null)
-                  }}
-                  className="input-field pl-10"
-                  placeholder="you@example.com"
-                  required
-                  disabled={isLoading}
-                  autoComplete="email"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value)
-                    setError(null)
-                  }}
-                  className="input-field pl-10"
-                  placeholder="••••••••"
-                  required
-                  disabled={isLoading}
-                  autoComplete="current-password"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
+            <AnimatedInput
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setError(null)
+              }}
+              label="Email Address"
+              icon={<Mail className="w-5 h-5" />}
+              placeholder="you@example.com"
+              error={error && email ? undefined : error}
+              required
               disabled={isLoading}
-              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+
+            <AnimatedInput
+              type="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value)
+                setError(null)
+              }}
+              label="Password"
+              icon={<Lock className="w-5 h-5" />}
+              placeholder="••••••••"
+              error={error && password ? undefined : error}
+              required
+              disabled={isLoading}
+            />
+
+            <AnimatedButton
+              type="submit"
+              variant="primary"
+              size="lg"
+              disabled={isLoading}
+              className="w-full"
             >
               {isLoading ? (
                 <>
@@ -150,7 +151,7 @@ const Login = () => {
                   Sign In
                 </>
               )}
-            </button>
+            </AnimatedButton>
           </form>
 
           <div className="mt-6 text-center space-y-2">

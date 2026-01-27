@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sliders, TrendingUp, Calculator, RefreshCw } from 'lucide-react'
-import { fetchAllTrainersWithStats } from '@/utils/adminQueries'
+import { fetchAllTrainersWithStats, fetchMonthlyTrends } from '@/utils/adminQueries'
 import toast from 'react-hot-toast'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 interface Scenario {
   id: string
@@ -17,6 +18,7 @@ interface Scenario {
 const ScenarioModeling = () => {
   const [scenarios, setScenarios] = useState<Scenario[]>([])
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null)
+  const [historicalData, setHistoricalData] = useState<any[]>([])
   const [variables, setVariables] = useState({
     assessmentFrequency: 1,
     bottom20Improvement: 0,
@@ -24,12 +26,34 @@ const ScenarioModeling = () => {
     trainingProgramImpact: 0,
   })
 
+  useEffect(() => {
+    loadHistoricalData()
+  }, [])
+
+  const loadHistoricalData = async () => {
+    try {
+      const trends = await fetchMonthlyTrends(12)
+      setHistoricalData(trends.map((t) => ({
+        month: t.month,
+        current: t.average_rating,
+        projected: t.average_rating, // Will be updated when scenario is created
+      })))
+    } catch (error) {
+      console.error('Error loading historical data:', error)
+    }
+  }
+
   const handleCreateScenario = () => {
     // Calculate projected impact
+    const baseScore = historicalData.length > 0 
+      ? historicalData[historicalData.length - 1].current 
+      : 4.2
+    const projectedScore = baseScore + variables.bottom20Improvement * 0.1 + (variables.trainingProgramImpact / 100) * 0.5
+    
     const projectedImpact = {
-      overallScore: 4.2 + variables.bottom20Improvement * 0.1,
-      improvement: variables.bottom20Improvement * 0.1,
-      trainersAffected: Math.floor(variables.bottom20Improvement * 10),
+      overallScore: Math.min(5, Math.max(1, projectedScore)),
+      improvement: projectedScore - baseScore,
+      trainersAffected: Math.floor(variables.bottom20Improvement * 10) + variables.newTrainers,
     }
 
     const newScenario: Scenario = {
@@ -39,6 +63,20 @@ const ScenarioModeling = () => {
       projectedImpact,
     }
 
+    // Update projected data for visualization
+    const updatedData = historicalData.map((d, index) => {
+      if (index >= historicalData.length - 3) {
+        // Project next 3 months
+        const monthsAhead = index - (historicalData.length - 3) + 1
+        return {
+          ...d,
+          projected: baseScore + (projectedImpact.improvement * monthsAhead / 3),
+        }
+      }
+      return d
+    })
+
+    setHistoricalData(updatedData)
     setScenarios([...scenarios, newScenario])
     setCurrentScenario(newScenario)
     toast.success('Scenario created')
@@ -215,6 +253,45 @@ const ScenarioModeling = () => {
           </div>
         )}
       </div>
+
+      {/* Projection Chart */}
+      {currentScenario && historicalData.length > 0 && (
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Projected Performance Trend</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={historicalData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="month" stroke="#6b7280" />
+              <YAxis domain={[0, 5]} stroke="#6b7280" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                }}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="current"
+                name="Historical"
+                stroke="#6366f1"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="projected"
+                name="Projected"
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={{ r: 4 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Saved Scenarios */}
       {scenarios.length > 0 && (

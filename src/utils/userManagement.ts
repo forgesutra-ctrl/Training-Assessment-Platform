@@ -145,27 +145,25 @@ export const fetchAllUsers = async (filters?: {
 
   if (error) throw error
 
-  // Fetch emails from auth.users
-  const userIds = data?.map((p) => p.id) || []
-  const { data: authUsers } = await supabase.auth.admin.listUsers()
+  // Note: We can't use supabase.auth.admin.listUsers() from the client (requires service role key)
+  // Instead, we'll get emails from a database function or skip email display
+  // For now, we'll work with profiles only and note that email fetching requires backend
   
   // Apply search filter if provided
   let filteredData = data || []
   if (filters?.search) {
     const searchLower = filters.search.toLowerCase()
     filteredData = filteredData.filter((profile: any) => {
-      const email = authUsers?.users.find((u) => u.id === profile.id)?.email || ''
-      return (
-        profile.full_name.toLowerCase().includes(searchLower) ||
-        email.toLowerCase().includes(searchLower)
-      )
+      // Search by name only (email requires admin API which needs service role key)
+      return profile.full_name.toLowerCase().includes(searchLower)
     })
   }
 
   const users: UserForManagement[] = filteredData.map((profile: any) => {
-    const authUser = authUsers?.users.find((u) => u.id === profile.id)
-    const email = authUser?.email || 'N/A'
-    const status = authUser?.banned_until ? 'inactive' : 'active'
+    // Email fetching requires service role key, so we'll use a placeholder
+    // In production, you'd want to create a database function or use backend API
+    const email = 'N/A' // Would need backend API or database function to get email
+    const status = 'active' // Default to active (can't check banned status without admin API)
 
     return {
       id: profile.id,
@@ -241,7 +239,7 @@ export const createUser = async (
     ? generatePassword()
     : userData.password || generatePassword()
 
-  // Create auth user
+  // Create auth user (requires service role key)
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: userData.email,
     password,
@@ -252,7 +250,12 @@ export const createUser = async (
     },
   })
 
-  if (authError) throw authError
+  if (authError) {
+    if (authError.status === 403 || authError.message.includes('Forbidden')) {
+      throw new Error('Admin operations require service role key. Please configure VITE_SUPABASE_SERVICE_ROLE_KEY in your .env file, or use backend API endpoints.')
+    }
+    throw authError
+  }
   if (!authData.user) throw new Error('Failed to create auth user')
 
   // Create profile
@@ -266,7 +269,12 @@ export const createUser = async (
 
   if (profileError) {
     // Rollback: delete auth user if profile creation fails
-    await supabase.auth.admin.deleteUser(authData.user.id).catch(console.error)
+    try {
+      await supabase.auth.admin.deleteUser(authData.user.id)
+    } catch (deleteError) {
+      console.error('Failed to rollback auth user creation:', deleteError)
+      // Continue anyway - profile creation failed but auth user exists
+    }
     throw profileError
   }
 

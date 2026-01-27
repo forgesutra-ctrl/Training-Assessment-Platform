@@ -88,9 +88,10 @@ export const fetchAuditLogs = async (
   offset: number = 0
 ): Promise<{ logs: AuditLog[]; total: number }> => {
   try {
+    // First, fetch audit logs
     let query = supabase
       .from('audit_logs')
-      .select('*, profiles!audit_logs_user_id_fkey(full_name)', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -118,6 +119,26 @@ export const fetchAuditLogs = async (
 
     if (error) throw error
 
+    // Get unique user IDs from logs
+    const userIds = [...new Set((data || []).map((log: any) => log.user_id).filter(Boolean))]
+
+    // Fetch profiles for those users
+    let profilesMap: Record<string, string> = {}
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', userIds)
+
+      if (profiles) {
+        profilesMap = profiles.reduce((acc: Record<string, string>, profile: any) => {
+          acc[profile.id] = profile.full_name
+          return acc
+        }, {})
+      }
+    }
+
+    // Map logs with user names
     const logs: AuditLog[] = (data || []).map((log: any) => ({
       id: log.id,
       user_id: log.user_id,
@@ -127,7 +148,7 @@ export const fetchAuditLogs = async (
       details: log.details,
       ip_address: log.ip_address,
       created_at: log.created_at,
-      user_name: log.profiles?.full_name || null,
+      user_name: log.user_id ? profilesMap[log.user_id] || null : null,
     }))
 
     return {

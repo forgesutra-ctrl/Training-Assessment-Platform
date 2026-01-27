@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import OnboardingTour from './components/OnboardingTour'
+import EasterEggHandler from './components/EasterEggHandler'
 import Login from './pages/Login'
 import SignUp from './pages/SignUp'
 import ManagerDashboard from './pages/ManagerDashboard'
@@ -15,7 +16,13 @@ function App() {
   return (
     <AuthProvider>
       <OnboardingTour />
-      <Router>
+      <EasterEggHandler />
+      <Router
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />

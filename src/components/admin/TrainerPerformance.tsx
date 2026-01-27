@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, TrendingUp, TrendingDown, Eye, Download, ChevronUp, ChevronDown } from 'lucide-react'
+import { Search, TrendingUp, TrendingDown, Eye, Download, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { fetchAllTrainersWithStats } from '@/utils/adminQueries'
 import { TrainerWithStats } from '@/types'
+import { fetchTrainerAssessments } from '@/utils/trainerAssessments'
+import { exportToExcel, exportToCSV } from '@/utils/reporting'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
+import { TrainerAssessmentWithDetails } from '@/types'
 
 type SortField = keyof TrainerWithStats
 type SortDirection = 'asc' | 'desc'
@@ -17,6 +20,10 @@ const TrainerPerformance = () => {
   const [sortField, setSortField] = useState<SortField>('all_time_avg')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedTrainer, setSelectedTrainer] = useState<TrainerWithStats | null>(null)
+  const [trainerAssessments, setTrainerAssessments] = useState<TrainerAssessmentWithDetails[]>([])
+  const [loadingAssessments, setLoadingAssessments] = useState(false)
+  const [showTrainerModal, setShowTrainerModal] = useState(false)
   const itemsPerPage = 20
 
   useEffect(() => {
@@ -98,6 +105,67 @@ const TrainerPerformance = () => {
     ) : (
       <ChevronDown className="w-4 h-4" />
     )
+  }
+
+  const handleViewTrainer = async (trainer: TrainerWithStats) => {
+    try {
+      setSelectedTrainer(trainer)
+      setLoadingAssessments(true)
+      setShowTrainerModal(true)
+      
+      const assessments = await fetchTrainerAssessments(trainer.id)
+      setTrainerAssessments(assessments)
+    } catch (error: any) {
+      console.error('Error loading trainer assessments:', error)
+      toast.error('Failed to load trainer details')
+    } finally {
+      setLoadingAssessments(false)
+    }
+  }
+
+  const handleExportTrainer = async (trainer: TrainerWithStats) => {
+    try {
+      toast.loading('Exporting trainer data...', { id: 'export' })
+      
+      // Fetch trainer assessments
+      const assessments = await fetchTrainerAssessments(trainer.id)
+      
+      // Format data for export
+      const exportData = assessments.map((assessment) => ({
+        'Assessment Date': new Date(assessment.assessment_date).toLocaleDateString(),
+        'Assessor': assessment.assessor_name,
+        'Trainer Readiness': assessment.trainers_readiness,
+        'Communication Skills': assessment.communication_skills,
+        'Domain Expertise': assessment.domain_expertise,
+        'Knowledge Displayed': assessment.knowledge_displayed,
+        'People Management': assessment.people_management,
+        'Technical Skills': assessment.technical_skills,
+        'Average Score': assessment.average_score,
+        'Overall Comments': assessment.overall_comments || '',
+      }))
+
+      // Export to Excel
+      await exportToExcel(
+        {
+          [`${trainer.full_name} - Performance`]: exportData,
+          'Summary': [{
+            'Trainer Name': trainer.full_name,
+            'Team': trainer.team_name || 'N/A',
+            'Month Avg': trainer.current_month_avg.toFixed(2),
+            'Quarter Avg': trainer.quarter_avg.toFixed(2),
+            'YTD Avg': trainer.ytd_avg.toFixed(2),
+            'All-Time Avg': trainer.all_time_avg.toFixed(2),
+            'Total Assessments': trainer.total_assessments,
+          }]
+        },
+        `${trainer.full_name.replace(/\s+/g, '_')}_Performance_${new Date().toISOString().split('T')[0]}`
+      )
+
+      toast.success('Trainer data exported successfully', { id: 'export' })
+    } catch (error: any) {
+      console.error('Error exporting trainer data:', error)
+      toast.error('Failed to export trainer data', { id: 'export' })
+    }
   }
 
   if (loading) {
@@ -303,11 +371,17 @@ const TrainerPerformance = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="text-primary-600 hover:text-primary-900 flex items-center gap-1">
+                        <button
+                          onClick={() => handleViewTrainer(trainer)}
+                          className="text-primary-600 hover:text-primary-900 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-primary-50 transition-colors"
+                        >
                           <Eye className="w-4 h-4" />
                           View
                         </button>
-                        <button className="text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                        <button
+                          onClick={() => handleExportTrainer(trainer)}
+                          className="text-gray-600 hover:text-gray-900 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
                           <Download className="w-4 h-4" />
                           Export
                         </button>
@@ -350,6 +424,130 @@ const TrainerPerformance = () => {
           </>
         )}
       </div>
+
+      {/* Trainer Details Modal */}
+      {showTrainerModal && selectedTrainer && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            {/* Background overlay */}
+            <div
+              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              onClick={() => setShowTrainerModal(false)}
+            />
+
+            {/* Modal panel */}
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+              <div className="bg-white px-6 pt-6 pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">{selectedTrainer.full_name}</h3>
+                    <p className="text-sm text-gray-600 mt-1">{selectedTrainer.team_name || 'No team assigned'}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowTrainerModal(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                {/* Trainer Stats */}
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-xs text-gray-600 mb-1">Month Avg</div>
+                    <div className={`text-2xl font-bold ${getScoreColor(selectedTrainer.current_month_avg)}`}>
+                      {selectedTrainer.current_month_avg > 0 ? selectedTrainer.current_month_avg.toFixed(2) : 'N/A'}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-xs text-gray-600 mb-1">Quarter Avg</div>
+                    <div className={`text-2xl font-bold ${getScoreColor(selectedTrainer.quarter_avg)}`}>
+                      {selectedTrainer.quarter_avg > 0 ? selectedTrainer.quarter_avg.toFixed(2) : 'N/A'}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-xs text-gray-600 mb-1">YTD Avg</div>
+                    <div className={`text-2xl font-bold ${getScoreColor(selectedTrainer.ytd_avg)}`}>
+                      {selectedTrainer.ytd_avg > 0 ? selectedTrainer.ytd_avg.toFixed(2) : 'N/A'}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-xs text-gray-600 mb-1">Total Assessments</div>
+                    <div className="text-2xl font-bold text-gray-900">{selectedTrainer.total_assessments}</div>
+                  </div>
+                </div>
+
+                {/* Assessments List */}
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Assessment History</h4>
+                  {loadingAssessments ? (
+                    <div className="flex items-center justify-center py-8">
+                      <LoadingSpinner size="md" text="Loading assessments..." />
+                    </div>
+                  ) : trainerAssessments.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No assessments found for this trainer</p>
+                    </div>
+                  ) : (
+                    <div className="max-h-96 overflow-y-auto space-y-3">
+                      {trainerAssessments.map((assessment) => (
+                        <div
+                          key={assessment.id}
+                          className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                Assessed by: {assessment.assessor_name}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {new Date(assessment.assessment_date).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <div className={`text-xl font-bold ${getScoreColor(assessment.average_score)}`}>
+                              {assessment.average_score.toFixed(2)}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div>Readiness: {assessment.trainers_readiness}/5</div>
+                            <div>Communication: {assessment.communication_skills}/5</div>
+                            <div>Domain: {assessment.domain_expertise}/5</div>
+                            <div>Knowledge: {assessment.knowledge_displayed}/5</div>
+                            <div>People Mgmt: {assessment.people_management}/5</div>
+                            <div>Technical: {assessment.technical_skills}/5</div>
+                          </div>
+                          {assessment.overall_comments && (
+                            <div className="mt-2 text-sm text-gray-700 bg-gray-50 rounded p-2">
+                              {assessment.overall_comments}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => handleExportTrainer(selectedTrainer)}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export Data
+                  </button>
+                  <button
+                    onClick={() => setShowTrainerModal(false)}
+                    className="btn-primary"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

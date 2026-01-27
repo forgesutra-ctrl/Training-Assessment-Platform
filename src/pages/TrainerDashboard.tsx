@@ -40,6 +40,11 @@ import LevelSystem from '@/components/LevelSystem'
 import GoalTracking from '@/components/GoalTracking'
 import StreakTracker from '@/components/StreakTracker'
 import Leaderboard from '@/components/Leaderboard'
+import TrainerSmartDashboard from '@/components/dashboard/TrainerSmartDashboard'
+import NotificationDropdown from '@/components/dashboard/NotificationDropdown'
+import QuickActions from '@/components/dashboard/QuickActions'
+import SoundToggle from '@/components/ui/SoundToggle'
+import { checkAlerts } from '@/utils/notifications'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { isGamificationEnabled, checkAndAwardBadges } from '@/utils/gamification'
 import toast from 'react-hot-toast'
@@ -88,6 +93,13 @@ const TrainerDashboard = () => {
             console.error('Error checking badges:', error)
           }
         }
+
+        // Check for alerts
+        const alerts = await checkAlerts(user.id, profile.role)
+        alerts.forEach((alert) => {
+          const notificationService = (await import('@/utils/notifications')).notificationService
+          notificationService.addNotification(alert)
+        })
       } catch (error: any) {
         console.error('Error loading trainer data:', error)
         toast.error('Failed to load assessment data')
@@ -170,6 +182,8 @@ const TrainerDashboard = () => {
               <h1 className="text-xl font-bold text-gray-900">Performance Dashboard</h1>
             </div>
             <div className="flex items-center gap-4">
+              <SoundToggle />
+              <NotificationDropdown />
               <span className="text-sm text-gray-600">{profile?.full_name || user?.email}</span>
               <button
                 onClick={handleSignOut}
@@ -254,6 +268,11 @@ const TrainerDashboard = () => {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
+          <TrainerSmartDashboard />
+        )}
+
+        {/* Legacy Overview Content - Hidden but kept for reference */}
+        {false && activeTab === 'overview' && (
           <>
             {/* Performance Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -495,9 +514,6 @@ const TrainerDashboard = () => {
               )}
             </>
           )}
-        </div>
-          </>
-        )}
 
         {activeTab === 'badges' && <BadgeSystem />}
 
@@ -517,6 +533,9 @@ const TrainerDashboard = () => {
           onClose={() => setSelectedAssessment(null)}
         />
       )}
+
+      {/* Quick Actions (FAB, shortcuts, command palette) */}
+      <QuickActions />
     </div>
   )
 }

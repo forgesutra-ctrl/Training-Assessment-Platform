@@ -45,10 +45,17 @@ const BulkUploadModal = ({ isOpen, onClose, onSuccess }: BulkUploadModalProps) =
       .select('id, full_name')
       .eq('role', 'manager')
 
-    // Get emails from auth
-    const { data: authUsers } = await supabase.auth.admin.listUsers()
+    // Get emails from auth (requires service role key - will fail if not available)
+    let authUsers: any = null
+    try {
+      const { data } = await supabase.auth.admin.listUsers()
+      authUsers = data
+    } catch (error) {
+      console.warn('Cannot fetch user emails: Admin API requires service role key. Emails will be empty.')
+    }
+    
     const managersWithEmail = (data || []).map((m) => {
-      const authUser = authUsers?.users.find((u) => u.id === m.id)
+      const authUser = authUsers?.users?.find((u: any) => u.id === m.id)
       return {
         id: m.id,
         email: authUser?.email || '',

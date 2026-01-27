@@ -4,6 +4,9 @@ import { fetchUserBadges, fetchAllBadges } from '@/utils/gamification'
 import { UserBadge, Badge } from '@/types'
 import { useAuthContext } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import AchievementUnlocked from '@/components/animations/AchievementUnlocked'
+import Fireworks from '@/components/animations/Fireworks'
+import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 const BadgeSystem = () => {
@@ -12,6 +15,9 @@ const BadgeSystem = () => {
   const [earnedBadges, setEarnedBadges] = useState<UserBadge[]>([])
   const [allBadges, setAllBadges] = useState<Badge[]>([])
   const [selectedBadge, setSelectedBadge] = useState<UserBadge | null>(null)
+  const [newBadge, setNewBadge] = useState<UserBadge | null>(null)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [fireworksTrigger, setFireworksTrigger] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -22,10 +28,24 @@ const BadgeSystem = () => {
   const loadBadges = async () => {
     try {
       setLoading(true)
+      const previousCount = earnedBadges.length
       const [earned, all] = await Promise.all([
         fetchUserBadges(user!.id),
         fetchAllBadges(),
       ])
+      
+      // Check for new badges
+      if (previousCount > 0 && earned.length > previousCount) {
+        const newestBadge = earned[earned.length - 1]
+        setNewBadge(newestBadge)
+        setShowCelebration(true)
+        setFireworksTrigger(true)
+        soundManager.playAchievement()
+        setTimeout(() => {
+          setFireworksTrigger(false)
+        }, 3000)
+      }
+      
       setEarnedBadges(earned)
       setAllBadges(all)
     } catch (error: any) {
@@ -68,6 +88,21 @@ const BadgeSystem = () => {
 
   return (
     <div className="space-y-6">
+      {/* Celebration */}
+      <Fireworks trigger={fireworksTrigger} />
+      {newBadge && (
+        <AchievementUnlocked
+          show={showCelebration}
+          title={newBadge.badge?.name || 'New Badge Earned!'}
+          description={newBadge.badge?.description}
+          icon={<Award className="w-12 h-12 text-white" />}
+          onComplete={() => {
+            setShowCelebration(false)
+            setNewBadge(null)
+          }}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

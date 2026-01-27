@@ -25,22 +25,25 @@ const AIFeedbackAssistant = ({
   const [error, setError] = useState<string | null>(null)
 
   const handleGenerate = async () => {
-    if (!isAIEnabled()) {
-      toast.error('AI features are not enabled. Please configure API keys in settings.')
-      return
-    }
-
     setLoading(true)
     setError(null)
 
     try {
+      // Always generate suggestions - will use fallback if AI is not enabled
       const generated = await generateFeedbackSuggestions(rating, parameter, selectedTone)
       setSuggestions(generated)
       setIsOpen(true)
+      
+      if (!isAIEnabled()) {
+        // Show info toast that fallback suggestions are being used
+        toast.success('Using template suggestions. Enable AI for personalized feedback.', {
+          duration: 3000,
+        })
+      }
     } catch (err: any) {
       console.error('Error generating suggestions:', err)
       setError('Failed to generate suggestions. Please try again.')
-      toast.error('AI service temporarily unavailable')
+      toast.error('Service temporarily unavailable')
     } finally {
       setLoading(false)
     }
@@ -56,17 +59,13 @@ const AIFeedbackAssistant = ({
     handleGenerate()
   }
 
-  if (!isAIEnabled() && !isOpen) {
-    return null // Don't show button if AI is disabled
-  }
-
   return (
     <div className="relative">
       <button
         onClick={handleGenerate}
-        disabled={loading}
+        disabled={loading || rating === 0}
         className="flex items-center gap-2 px-3 py-1.5 text-sm text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Get AI feedback suggestions"
+        title={rating === 0 ? "Please select a rating first" : isAIEnabled() ? "Get AI feedback suggestions" : "Get template feedback suggestions"}
       >
         {loading ? (
           <>
@@ -76,7 +75,7 @@ const AIFeedbackAssistant = ({
         ) : (
           <>
             <Sparkles className="w-4 h-4" />
-            AI Assistant
+            {isAIEnabled() ? 'AI Assistant' : 'Get Suggestions'}
           </>
         )}
       </button>
@@ -130,7 +129,11 @@ const AIFeedbackAssistant = ({
             {/* AI Label */}
             <div className="mb-3 flex items-center gap-2 text-xs text-gray-500">
               <AlertCircle className="w-4 h-4" />
-              <span>AI-generated suggestions. Review and edit as needed.</span>
+              <span>
+                {isAIEnabled() 
+                  ? 'AI-generated suggestions. Review and edit as needed.'
+                  : 'Template suggestions based on rating. Enable AI for personalized feedback.'}
+              </span>
             </div>
 
             {/* Error Message */}
