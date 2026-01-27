@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    base: '/', // Ensure base path is root for Vercel
     resolve: {
       alias: {
         '@': path.resolve(process.cwd(), './src'),

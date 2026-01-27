@@ -66,17 +66,63 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Initialize auth state
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      
-      if (session?.user) {
-        fetchProfile(session.user.id).then(setProfile)
+    let isMounted = true
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        console.warn('⚠️ Auth initialization timeout - setting loading to false')
+        setLoading(false)
       }
-      
-      setLoading(false)
-    })
+    }, 10000) // 10 second timeout
+
+    // Get initial session
+    supabase.auth.getSession()
+      .then(({ data: { session }, error }) => {
+        if (!isMounted) return
+        
+        if (error) {
+          console.error('Error getting session:', error)
+          setLoading(false)
+          clearTimeout(timeoutId)
+          return
+        }
+        
+        setSession(session)
+        setUser(session?.user ?? null)
+        
+        if (session?.user) {
+          fetchProfile(session.user.id)
+            .then((profile) => {
+              if (isMounted) {
+                setProfile(profile)
+                setLoading(false)
+                clearTimeout(timeoutId)
+              }
+            })
+            .catch((error) => {
+              console.error('Error fetching profile:', error)
+              if (isMounted) {
+                setLoading(false)
+                clearTimeout(timeoutId)
+              }
+            })
+        } else {
+          setLoading(false)
+          clearTimeout(timeoutId)
+        }
+      })
+      .catch((error) => {
+        console.error('Error in getSession:', error)
+        if (isMounted) {
+          setLoading(false)
+          clearTimeout(timeoutId)
+        }
+      })
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
+  }, [])
 
     // Listen for auth changes
     const {

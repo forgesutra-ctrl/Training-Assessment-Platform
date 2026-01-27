@@ -63,11 +63,14 @@ const Login = () => {
     }
   }
 
-  // Show loading while checking auth
+  // Show loading while checking auth (with timeout fallback)
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-50">
-        <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-gray-600">Loading...</p>
+        </div>
       </div>
     )
   }

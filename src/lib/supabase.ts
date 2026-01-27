@@ -5,19 +5,32 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 // Validate Supabase credentials
 if (!supabaseUrl || !supabaseAnonKey) {
-  if (import.meta.env.DEV) {
-    console.error('❌ Supabase credentials are missing!')
-    console.error('Please check your .env file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.')
-    console.error('Current values:')
-    console.error('  VITE_SUPABASE_URL:', supabaseUrl || 'MISSING')
-    console.error('  VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'MISSING')
-    console.error('\n📝 To fix this:')
+  const isDev = import.meta.env.DEV
+  const isProd = import.meta.env.PROD
+  
+  console.error('❌ Supabase credentials are missing!')
+  console.error('Current values:')
+  console.error('  VITE_SUPABASE_URL:', supabaseUrl || 'MISSING')
+  console.error('  VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'MISSING')
+  
+  if (isDev) {
+    console.error('\n📝 To fix this (Development):')
     console.error('1. Open your .env file in the project root')
     console.error('2. Add your Supabase credentials:')
     console.error('   VITE_SUPABASE_URL=https://your-project.supabase.co')
     console.error('   VITE_SUPABASE_ANON_KEY=your-anon-key-here')
     console.error('3. Get these values from: Supabase Dashboard → Settings → API')
     console.error('4. Restart your dev server (npm run dev)')
+  }
+  
+  if (isProd) {
+    console.error('\n📝 To fix this (Production/Vercel):')
+    console.error('1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables')
+    console.error('2. Add these variables:')
+    console.error('   VITE_SUPABASE_URL=https://your-project.supabase.co')
+    console.error('   VITE_SUPABASE_ANON_KEY=your-anon-key-here')
+    console.error('3. Make sure to select ALL environments (Production, Preview, Development)')
+    console.error('4. Click Save, then redeploy your project')
   }
 }
 
