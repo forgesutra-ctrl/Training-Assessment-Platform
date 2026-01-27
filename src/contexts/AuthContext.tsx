@@ -80,6 +80,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (!isMounted) return
         
         if (error) {
+          // Ignore AbortError - it's expected when component unmounts
+          if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+            return
+          }
           console.error('Error getting session:', error)
           setLoading(false)
           clearTimeout(timeoutId)
@@ -99,6 +103,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               }
             })
             .catch((error) => {
+              // Ignore AbortError - it's expected when component unmounts
+              if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+                return
+              }
               console.error('Error fetching profile:', error)
               if (isMounted) {
                 setLoading(false)
@@ -111,6 +119,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       })
       .catch((error) => {
+        // Ignore AbortError - it's expected when component unmounts
+        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+          return
+        }
         console.error('Error in getSession:', error)
         if (isMounted) {
           setLoading(false)
@@ -129,23 +141,40 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
+      try {
+        setSession(session)
+        setUser(session?.user ?? null)
 
-      if (session?.user) {
-        const profileData = await fetchProfile(session.user.id)
-        setProfile(profileData)
-      } else {
-        setProfile(null)
-      }
+        if (session?.user) {
+          try {
+            const profileData = await fetchProfile(session.user.id)
+            setProfile(profileData)
+          } catch (error: any) {
+            // Ignore AbortError - it's expected when component unmounts
+            if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+              return
+            }
+            console.error('Error fetching profile in auth state change:', error)
+          }
+        } else {
+          setProfile(null)
+        }
 
-      setLoading(false)
+        setLoading(false)
 
-      // Handle different auth events
-      if (event === 'SIGNED_IN') {
-        toast.success('Successfully signed in!')
-      } else if (event === 'SIGNED_OUT') {
-        toast.success('Successfully signed out!')
+        // Handle different auth events
+        if (event === 'SIGNED_IN') {
+          toast.success('Successfully signed in!')
+        } else if (event === 'SIGNED_OUT') {
+          toast.success('Successfully signed out!')
+        }
+      } catch (error: any) {
+        // Ignore AbortError - it's expected when component unmounts
+        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+          return
+        }
+        console.error('Error in auth state change:', error)
+        setLoading(false)
       }
     })
 
