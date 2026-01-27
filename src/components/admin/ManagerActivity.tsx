@@ -62,6 +62,24 @@ const ManagerActivity = () => {
     )
   }
 
+  if (error) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-red-600 mb-4">
+          <Activity className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Data</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="btn-primary"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Manager Activity Table */}

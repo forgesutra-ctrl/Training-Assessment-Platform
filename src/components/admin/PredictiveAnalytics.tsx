@@ -52,7 +52,9 @@ const PredictiveAnalytics = () => {
       setPredictions(preds)
     } catch (error: any) {
       console.error('Error loading predictive analytics:', error)
-      toast.error('Failed to load predictive analytics')
+      const errorMessage = error?.message || 'Failed to load predictive analytics'
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
