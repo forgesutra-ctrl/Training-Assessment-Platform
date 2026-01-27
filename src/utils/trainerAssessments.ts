@@ -26,13 +26,14 @@ export const fetchTrainerAssessments = async (
   // Fetch assessor profiles separately
   let assessorMap = new Map<string, any>()
   if (assessorIds.length > 0) {
-    const { data: assessors, error: assessorsError } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', assessorIds)
+    let query = supabase.from('profiles').select('id, full_name')
+    const { data: assessors, error: assessorsError } = assessorIds.length === 1
+      ? await query.eq('id', assessorIds[0])
+      : await query.in('id', assessorIds)
     
     if (!assessorsError && assessors) {
-      assessors.forEach((assessor: any) => {
+      const assessorsArray = Array.isArray(assessors) ? assessors : [assessors]
+      assessorsArray.forEach((assessor: any) => {
         assessorMap.set(assessor.id, assessor)
       })
     }

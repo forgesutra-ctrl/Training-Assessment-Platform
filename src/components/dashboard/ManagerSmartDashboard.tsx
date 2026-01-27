@@ -77,13 +77,14 @@ const ManagerSmartDashboard = () => {
       let teamMap = new Map<string, any>()
       
       if (teamIds.length > 0) {
-        const { data: teams, error: teamsError } = await supabase
-          .from('teams')
-          .select('id, team_name')
-          .in('id', teamIds)
+        let query = supabase.from('teams').select('id, team_name')
+        const { data: teams, error: teamsError } = teamIds.length === 1
+          ? await query.eq('id', teamIds[0])
+          : await query.in('id', teamIds)
         
         if (!teamsError && teams) {
-          teams.forEach((team: any) => {
+          const teamsArray = Array.isArray(teams) ? teams : [teams]
+          teamsArray.forEach((team: any) => {
             teamMap.set(team.id, team)
           })
         }
@@ -170,13 +171,14 @@ const ManagerSmartDashboard = () => {
       let trainerMap = new Map<string, any>()
       
       if (trainerIds.length > 0) {
-        const { data: trainers, error: trainersError } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', trainerIds)
+        let query = supabase.from('profiles').select('id, full_name')
+        const { data: trainers, error: trainersError } = trainerIds.length === 1
+          ? await query.eq('id', trainerIds[0])
+          : await query.in('id', trainerIds)
         
         if (!trainersError && trainers) {
-          trainers.forEach((trainer: any) => {
+          const trainersArray = Array.isArray(trainers) ? trainers : [trainers]
+          trainersArray.forEach((trainer: any) => {
             trainerMap.set(trainer.id, trainer)
           })
         }

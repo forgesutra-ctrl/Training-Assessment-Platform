@@ -55,26 +55,28 @@ export const fetchRecentActivity = async (limit: number = 20): Promise<ActivityI
     let trainerMap = new Map<string, any>()
 
     if (assessorIds.length > 0) {
-      const { data: assessors, error: assessorsError } = await supabase
-        .from('profiles')
-        .select('id, full_name, role')
-        .in('id', assessorIds)
+      let query = supabase.from('profiles').select('id, full_name, role')
+      const { data: assessors, error: assessorsError } = assessorIds.length === 1
+        ? await query.eq('id', assessorIds[0])
+        : await query.in('id', assessorIds)
       
       if (!assessorsError && assessors) {
-        assessors.forEach((assessor: any) => {
+        const assessorsArray = Array.isArray(assessors) ? assessors : [assessors]
+        assessorsArray.forEach((assessor: any) => {
           assessorMap.set(assessor.id, assessor)
         })
       }
     }
 
     if (trainerIds.length > 0) {
-      const { data: trainers, error: trainersError } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', trainerIds)
+      let query = supabase.from('profiles').select('id, full_name')
+      const { data: trainers, error: trainersError } = trainerIds.length === 1
+        ? await query.eq('id', trainerIds[0])
+        : await query.in('id', trainerIds)
       
       if (!trainersError && trainers) {
-        trainers.forEach((trainer: any) => {
+        const trainersArray = Array.isArray(trainers) ? trainers : [trainers]
+        trainersArray.forEach((trainer: any) => {
           trainerMap.set(trainer.id, trainer)
         })
       }

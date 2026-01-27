@@ -80,30 +80,42 @@ export const fetchManagerAssessments = async (
   // Fetch trainer profiles (only if we have trainer IDs)
   let trainerProfiles: any[] = []
   if (trainerIds.length > 0) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, email')
-      .in('id', trainerIds)
-    
-    if (error) {
-      console.error('Error fetching trainer profiles:', error)
+    let query = supabase.from('profiles').select('id, full_name, email')
+    if (trainerIds.length === 1) {
+      const { data, error } = await query.eq('id', trainerIds[0])
+      if (error) {
+        console.error('Error fetching trainer profiles:', error)
+      } else {
+        trainerProfiles = data ? [data] : []
+      }
     } else {
-      trainerProfiles = data || []
+      const { data, error } = await query.in('id', trainerIds)
+      if (error) {
+        console.error('Error fetching trainer profiles:', error)
+      } else {
+        trainerProfiles = data || []
+      }
     }
   }
 
   // Fetch assessor profiles (only if we have assessor IDs)
   let assessorProfiles: any[] = []
   if (assessorIds.length > 0) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, email')
-      .in('id', assessorIds)
-    
-    if (error) {
-      console.error('Error fetching assessor profiles:', error)
+    let query = supabase.from('profiles').select('id, full_name, email')
+    if (assessorIds.length === 1) {
+      const { data, error } = await query.eq('id', assessorIds[0])
+      if (error) {
+        console.error('Error fetching assessor profiles:', error)
+      } else {
+        assessorProfiles = data ? [data] : []
+      }
     } else {
-      assessorProfiles = data || []
+      const { data, error } = await query.in('id', assessorIds)
+      if (error) {
+        console.error('Error fetching assessor profiles:', error)
+      } else {
+        assessorProfiles = data || []
+      }
     }
   }
 

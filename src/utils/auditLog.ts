@@ -125,10 +125,10 @@ export const fetchAuditLogs = async (
     // Fetch profiles for those users
     let profilesMap: Record<string, string> = {}
     if (userIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', userIds)
+      let query = supabase.from('profiles').select('id, full_name')
+      const { data: profiles } = userIds.length === 1
+        ? await query.eq('id', userIds[0])
+        : await query.in('id', userIds)
 
       if (profiles) {
         profilesMap = profiles.reduce((acc: Record<string, string>, profile: any) => {

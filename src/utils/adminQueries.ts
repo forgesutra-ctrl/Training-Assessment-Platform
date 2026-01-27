@@ -94,11 +94,15 @@ export const fetchAllTrainersWithStats = async (
     .eq('role', 'trainer')
 
   // Fetch reporting managers separately
-  const managerIds = trainers?.map((t) => t.reporting_manager_id).filter(Boolean) || []
-  const { data: managers } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .in('id', managerIds)
+  const managerIds = [...new Set(trainers?.map((t) => t.reporting_manager_id).filter(Boolean) || [])]
+  let managers: any[] = []
+  if (managerIds.length > 0) {
+    let query = supabase.from('profiles').select('id, full_name')
+    const { data: managersData } = managerIds.length === 1
+      ? await query.eq('id', managerIds[0])
+      : await query.in('id', managerIds)
+    managers = Array.isArray(managersData) ? managersData : (managersData ? [managersData] : [])
+  }
 
   if (!trainers) return []
 
@@ -463,12 +467,39 @@ export const getCrossAssessmentMatrix = async (): Promise<CrossAssessmentMatrix[
   // Fetch all assessments
   const { data: assessments } = await supabase.from('assessments').select('assessor_id, trainer_id')
   
-  // Fetch trainer profiles with teams
-  const trainerIds = [...new Set(assessments?.map((a: any) => a.trainer_id) || [])]
-  const { data: trainerProfiles } = await supabase
-    .from('profiles')
-    .select('id, team_id, teams(team_name)')
-    .in('id', trainerIds)
+  // Fetch trainer profiles separately
+  const trainerIds = [...new Set(assessments?.map((a: any) => a.trainer_id).filter(Boolean) || [])]
+  let trainerProfiles: any[] = []
+  let teamMap = new Map<string, any>()
+  
+  if (trainerIds.length > 0) {
+    let query = supabase.from('profiles').select('id, team_id')
+    const { data: trainersData } = trainerIds.length === 1
+      ? await query.eq('id', trainerIds[0])
+      : await query.in('id', trainerIds)
+    
+    trainerProfiles = Array.isArray(trainersData) ? trainersData : (trainersData ? [trainersData] : [])
+    
+    // Fetch teams separately
+    const teamIds = [...new Set(trainerProfiles.map((t: any) => t.team_id).filter(Boolean))]
+    if (teamIds.length > 0) {
+      let teamQuery = supabase.from('teams').select('id, team_name')
+      const { data: teamsData } = teamIds.length === 1
+        ? await teamQuery.eq('id', teamIds[0])
+        : await teamQuery.in('id', teamIds)
+      
+      const teamsArray = Array.isArray(teamsData) ? teamsData : (teamsData ? [teamsData] : [])
+      teamsArray.forEach((team: any) => {
+        teamMap.set(team.id, team)
+      })
+    }
+    
+    // Add team_name to trainer profiles
+    trainerProfiles = trainerProfiles.map((t: any) => ({
+      ...t,
+      team_name: t.team_id ? teamMap.get(t.team_id)?.team_name : null,
+    }))
+  }
 
   // Get all unique teams
   const { data: teams } = await supabase.from('teams').select('id, team_name')
@@ -543,26 +574,28 @@ export const fetchRecentActivity = async (limit: number = 20): Promise<RecentAct
   let trainerMap = new Map<string, any>()
 
   if (assessorIds.length > 0) {
-    const { data: assessors, error: assessorsError } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', assessorIds)
+    let query = supabase.from('profiles').select('id, full_name')
+    const { data: assessors, error: assessorsError } = assessorIds.length === 1
+      ? await query.eq('id', assessorIds[0])
+      : await query.in('id', assessorIds)
     
     if (!assessorsError && assessors) {
-      assessors.forEach((assessor: any) => {
+      const assessorsArray = Array.isArray(assessors) ? assessors : [assessors]
+      assessorsArray.forEach((assessor: any) => {
         assessorMap.set(assessor.id, assessor)
       })
     }
   }
   
   if (trainerIds.length > 0) {
-    const { data: trainers, error: trainersError } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', trainerIds)
+    let query = supabase.from('profiles').select('id, full_name')
+    const { data: trainers, error: trainersError } = trainerIds.length === 1
+      ? await query.eq('id', trainerIds[0])
+      : await query.in('id', trainerIds)
     
     if (!trainersError && trainers) {
-      trainers.forEach((trainer: any) => {
+      const trainersArray = Array.isArray(trainers) ? trainers : [trainers]
+      trainersArray.forEach((trainer: any) => {
         trainerMap.set(trainer.id, trainer)
       })
     }
@@ -616,11 +649,38 @@ export const getTopPerformers = async (
       .gte('assessment_date', startDate.toISOString().split('T')[0])
 
     // Fetch trainer profiles separately
-    const trainerIds = [...new Set(assessments?.map((a: any) => a.trainer_id) || [])]
-    const { data: trainerProfiles } = await supabase
-      .from('profiles')
-      .select('id, full_name, team_id, teams(team_name)')
-      .in('id', trainerIds)
+    const trainerIds = [...new Set(assessments?.map((a: any) => a.trainer_id).filter(Boolean) || [])]
+    let trainerProfiles: any[] = []
+    let teamMap = new Map<string, any>()
+    
+    if (trainerIds.length > 0) {
+      let query = supabase.from('profiles').select('id, full_name, team_id')
+      const { data: trainersData } = trainerIds.length === 1
+        ? await query.eq('id', trainerIds[0])
+        : await query.in('id', trainerIds)
+      
+      trainerProfiles = Array.isArray(trainersData) ? trainersData : (trainersData ? [trainersData] : [])
+      
+      // Fetch teams separately
+      const teamIds = [...new Set(trainerProfiles.map((t: any) => t.team_id).filter(Boolean))]
+      if (teamIds.length > 0) {
+        let teamQuery = supabase.from('teams').select('id, team_name')
+        const { data: teamsData } = teamIds.length === 1
+          ? await teamQuery.eq('id', teamIds[0])
+          : await teamQuery.in('id', teamIds)
+        
+        const teamsArray = Array.isArray(teamsData) ? teamsData : (teamsData ? [teamsData] : [])
+        teamsArray.forEach((team: any) => {
+          teamMap.set(team.id, team)
+        })
+      }
+      
+      // Add team_name to trainer profiles
+      trainerProfiles = trainerProfiles.map((t: any) => ({
+        ...t,
+        team_name: t.team_id ? teamMap.get(t.team_id)?.team_name : null,
+      }))
+    }
 
   if (!assessments) return []
 

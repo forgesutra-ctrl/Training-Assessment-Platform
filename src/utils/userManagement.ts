@@ -147,26 +147,28 @@ export const fetchAllUsers = async (filters?: {
   let managerMap = new Map<string, any>()
 
   if (teamIds.length > 0) {
-    const { data: teams, error: teamsError } = await supabase
-      .from('teams')
-      .select('id, team_name')
-      .in('id', teamIds)
+    let query = supabase.from('teams').select('id, team_name')
+    const { data: teams, error: teamsError } = teamIds.length === 1
+      ? await query.eq('id', teamIds[0])
+      : await query.in('id', teamIds)
     
     if (!teamsError && teams) {
-      teams.forEach((team: any) => {
+      const teamsArray = Array.isArray(teams) ? teams : [teams]
+      teamsArray.forEach((team: any) => {
         teamMap.set(team.id, team)
       })
     }
   }
 
   if (managerIds.length > 0) {
-    const { data: managers, error: managersError } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', managerIds)
+    let query = supabase.from('profiles').select('id, full_name')
+    const { data: managers, error: managersError } = managerIds.length === 1
+      ? await query.eq('id', managerIds[0])
+      : await query.in('id', managerIds)
     
     if (!managersError && managers) {
-      managers.forEach((manager: any) => {
+      const managersArray = Array.isArray(managers) ? managers : [managers]
+      managersArray.forEach((manager: any) => {
         managerMap.set(manager.id, manager)
       })
     }
@@ -450,18 +452,29 @@ export const getReportingStructure = async (): Promise<OrgTree> => {
   // Fetch all profiles
   const { data: profiles } = await supabase
     .from('profiles')
-    .select(`
-      id,
-      full_name,
-      role,
-      team_id,
-      reporting_manager_id,
-      teams(team_name)
-    `)
+    .select('id, full_name, role, team_id, reporting_manager_id')
     .in('role', ['manager', 'trainer'])
 
   if (!teams || !profiles) {
     return { teams: [], orphaned: [] }
+  }
+
+  // Fetch team names separately
+  const teamIdsFromProfiles = [...new Set(profiles.map((p: any) => p.team_id).filter(Boolean))]
+  let teamNameMap = new Map<string, string>()
+  
+  if (teamIdsFromProfiles.length > 0) {
+    let query = supabase.from('teams').select('id, team_name')
+    const { data: allTeams, error: teamsError } = teamIdsFromProfiles.length === 1
+      ? await query.eq('id', teamIdsFromProfiles[0])
+      : await query.in('id', teamIdsFromProfiles)
+    
+    if (!teamsError && allTeams) {
+      const teamsArray = Array.isArray(allTeams) ? allTeams : [allTeams]
+      teamsArray.forEach((t: any) => {
+        teamNameMap.set(t.id, t.team_name)
+      })
+    }
   }
 
   const orgTree: OrgTree = {
@@ -485,7 +498,7 @@ export const getReportingStructure = async (): Promise<OrgTree> => {
         name: trainer.full_name,
         role: 'trainer',
         team_id: trainer.team_id,
-        team_name: Array.isArray(trainer.teams) ? trainer.teams[0]?.team_name : (trainer.teams as any)?.team_name || null,
+        team_name: trainer.team_id ? teamNameMap.get(trainer.team_id) || null : null,
       }))
 
       return {
@@ -518,7 +531,7 @@ export const getReportingStructure = async (): Promise<OrgTree> => {
       name: trainer.full_name,
       role: 'trainer' as const,
       team_id: trainer.team_id,
-      team_name: Array.isArray(trainer.teams) ? trainer.teams[0]?.team_name : (trainer.teams as any)?.team_name || null,
+      team_name: trainer.team_id ? teamNameMap.get(trainer.team_id) || null : null,
       isOrphaned: true,
     }))
 
