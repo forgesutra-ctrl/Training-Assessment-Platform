@@ -14,11 +14,12 @@ const Login = () => {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loginSuccess, setLoginSuccess] = useState(false)
   const { signIn, user, profile, loading } = useAuthContext()
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Redirect if already logged in
+  // Redirect if already logged in or after successful login
   useEffect(() => {
     if (!loading && user && profile) {
       const roleRoutes: Record<string, string> = {
@@ -29,8 +30,16 @@ const Login = () => {
       const redirectTo = roleRoutes[profile.role] || '/login'
       const from = (location.state as any)?.from?.pathname || redirectTo
       navigate(from, { replace: true })
+    } else if (loginSuccess && !loading && user && !profile) {
+      // Login succeeded but profile not loaded after 3 seconds
+      setTimeout(() => {
+        if (!profile) {
+          setError('Profile not found. Please contact support or check if your account is properly set up.')
+          setLoginSuccess(false)
+        }
+      }, 3000)
     }
-  }, [user, profile, loading, navigate, location])
+  }, [user, profile, loading, navigate, location, loginSuccess])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,24 +51,20 @@ const Login = () => {
     }
 
     setIsLoading(true)
+    setError(null)
     soundManager.playClick()
     const result = await signIn(email, password)
     setIsLoading(false)
 
-    if (result?.success && profile) {
+    if (result?.success) {
+      setLoginSuccess(true)
       soundManager.playSuccess()
       toast.success('Welcome back! 🎉')
-      // Navigate based on user role
-      const roleRoutes: Record<string, string> = {
-        admin: '/admin/dashboard',
-        manager: '/manager/dashboard',
-        trainer: '/trainer/dashboard',
-      }
-      const redirectTo = roleRoutes[profile.role] || '/login'
-      navigate(redirectTo, { replace: true })
+      // Navigation will happen automatically via useEffect when profile loads
     } else if (result?.error) {
       setError(result.error)
       soundManager.playError()
+      setLoginSuccess(false)
     }
   }
 

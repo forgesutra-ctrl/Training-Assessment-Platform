@@ -45,13 +45,43 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .single()
 
       if (error) {
-        console.error('Error fetching profile:', error)
+        // Ignore AbortError
+        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+          return null
+        }
+        
+        console.error('❌ Error fetching profile:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          userId: userId,
+        })
+        
+        // Provide helpful hints based on error code
+        if (error.code === 'PGRST116') {
+          console.error('💡 Profile not found. This user may not have a profile record in the database.')
+          console.error('   Run the seed script or create a profile for this user.')
+        } else if (error.code === '42501' || error.message?.includes('permission denied')) {
+          console.error('💡 Permission denied. Check RLS policies on the profiles table.')
+          console.error('   Make sure the user can read their own profile.')
+        }
+        
+        return null
+      }
+
+      if (!data) {
+        console.warn('⚠️ Profile query returned no data for user:', userId)
         return null
       }
 
       return data as Profile
-    } catch (error) {
-      console.error('Error fetching profile:', error)
+    } catch (error: any) {
+      // Ignore AbortError
+      if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+        return null
+      }
+      console.error('❌ Exception fetching profile:', error)
       return null
     }
   }
@@ -211,7 +241,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Provide more helpful error messages
         let userFriendlyError = error.message
         
-        if (error.status === 401) {
+        if (error.status === 400) {
+          if (error.message.includes('Invalid login credentials') || error.message.includes('invalid')) {
+            userFriendlyError = 'Invalid email or password. Please check your credentials and try again.'
+            console.error('❌ Login failed:', {
+              status: error.status,
+              message: error.message,
+              email: email,
+            })
+          } else if (error.message.includes('Email not confirmed')) {
+            userFriendlyError = 'Please verify your email address before signing in.'
+          } else {
+            userFriendlyError = `Authentication failed: ${error.message}`
+            console.error('❌ Login error (400):', {
+              status: error.status,
+              message: error.message,
+              email: email,
+            })
+          }
+        } else if (error.status === 401) {
           if (error.message.includes('Invalid API key') || error.message.includes('Invalid API Key')) {
             userFriendlyError = 'Supabase API key is invalid. Please check your .env file configuration.'
             console.error('❌ Invalid Supabase API Key!')
@@ -244,9 +292,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (data.user) {
         // Fetch profile after successful login
-        const profileData = await fetchProfile(data.user.id)
-        setProfile(profileData)
-        return { success: true }
+        try {
+          const profileData = await fetchProfile(data.user.id)
+          if (profileData) {
+            setProfile(profileData)
+            console.log('✅ Profile loaded successfully:', profileData)
+            return { success: true }
+          } else {
+            console.warn('⚠️ Profile not found for user:', data.user.id)
+            console.warn('This might mean:')
+            console.warn('1. The user profile was not created in the profiles table')
+            console.warn('2. RLS policies are blocking profile access')
+            console.warn('3. The user ID does not match any profile')
+            return { success: false, error: 'Profile not found. Please contact support.' }
+          }
+        } catch (profileError: any) {
+          // Ignore AbortError
+          if (profileError.name === 'AbortError' || profileError.message?.includes('aborted')) {
+            return { success: true } // Return success, profile will load via onAuthStateChange
+          }
+          console.error('❌ Error fetching profile after login:', profileError)
+          return { success: false, error: 'Failed to load user profile. Please try again.' }
+        }
       }
 
       return { success: false, error: 'No user data returned' }
