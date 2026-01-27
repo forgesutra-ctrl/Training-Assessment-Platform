@@ -49,7 +49,8 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   }
 
   // If role-based access is required, check if user has allowed role
-  if (allowedRoles && !allowedRoles.includes(profile.role)) {
+  // Only check if profile exists - if no profile yet, allow access (will check later)
+  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
     // Redirect to appropriate dashboard based on role
     const roleRoutes: Record<string, string> = {
       admin: '/admin/dashboard',
