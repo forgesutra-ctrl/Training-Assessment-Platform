@@ -5,7 +5,42 @@ You're seeing "Profile not found. Please contact support." after successful logi
 - ✅ Authentication works (Supabase auth succeeded)
 - ❌ Profile record is missing from the `profiles` table
 
-## 🚨 Quick Fix Options
+## 🚨 IMMEDIATE FIX (Run This SQL in Supabase)
+
+**This is the fastest solution - run this in Supabase SQL Editor:**
+
+1. Go to [Supabase Dashboard](https://app.supabase.com) → Your Project → **SQL Editor**
+2. Copy and paste this SQL:
+
+```sql
+-- Create profiles for all users who don't have one
+INSERT INTO profiles (id, full_name, role, team_id, reporting_manager_id)
+SELECT 
+  au.id,
+  COALESCE(
+    au.user_metadata->>'full_name',
+    INITCAP(REPLACE(SPLIT_PART(au.email, '@', 1), '.', ' '))
+  ) as full_name,
+  COALESCE(
+    au.user_metadata->>'role',
+    'trainer'
+  )::text as role,
+  NULL as team_id,
+  NULL as reporting_manager_id
+FROM auth.users au
+LEFT JOIN profiles p ON au.id = p.id
+WHERE p.id IS NULL
+ON CONFLICT (id) DO NOTHING;
+```
+
+3. Click **Run** (or press `Ctrl+Enter`)
+4. Try logging in again
+
+**That's it!** This creates profiles for all users missing them.
+
+---
+
+## 🚨 Alternative Quick Fix Options
 
 ### Option 1: Run the Seed Script (Recommended)
 

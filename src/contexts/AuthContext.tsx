@@ -76,8 +76,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               .single()
             
             if (createError) {
-              console.error('❌ Failed to auto-create profile:', createError)
-              console.error('💡 Please run the seed script or create profile manually in Supabase')
+              console.error('❌ Failed to auto-create profile:', {
+                code: createError.code,
+                message: createError.message,
+                details: createError.details,
+                hint: createError.hint,
+              })
+              
+              if (createError.code === '42501' || createError.message?.includes('permission denied')) {
+                console.error('💡 RLS Policy Issue: User cannot insert their own profile')
+                console.error('   Solution: Run this SQL in Supabase SQL Editor:')
+                console.error('   See: migrations/create-missing-profiles.sql')
+              } else {
+                console.error('💡 Please run the seed script or create profile manually in Supabase')
+                console.error('   See: PROFILE_NOT_FOUND_FIX.md for instructions')
+              }
               return null
             }
             
