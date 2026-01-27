@@ -124,7 +124,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [])
 
-    // Listen for auth changes
+  // Listen for auth changes
+  useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
