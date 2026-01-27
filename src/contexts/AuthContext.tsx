@@ -196,29 +196,48 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }
 
-  // Initialize auth state
+  // Initialize auth state - optimized for fast initial load
   useEffect(() => {
     let isMounted = true
-    const timeoutId = setTimeout(() => {
+    let timeoutId: NodeJS.Timeout | null = null
+    
+    // Fast timeout - show login form quickly if no session
+    timeoutId = setTimeout(() => {
       if (isMounted) {
-        console.warn('⚠️ Auth initialization timeout - setting loading to false')
-        setLoading(false)
+        // If we still don't have a session after 2 seconds, stop loading
+        // This allows the login form to show quickly
+        if (!session) {
+          console.log('⏱️ Fast timeout - no session found, showing login form')
+          setLoading(false)
+        }
       }
-    }, 10000) // 10 second timeout
+    }, 2000) // 2 second timeout for initial load
 
-    // Get initial session
+    // Get initial session with error handling for refresh token issues
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
         if (!isMounted) return
         
+        // Handle refresh token errors gracefully - don't block the UI
         if (error) {
           // Ignore AbortError - it's expected when component unmounts
           if (error.name === 'AbortError' || error.message?.includes('aborted')) {
             return
           }
+          // Ignore refresh token errors - they're common and don't block login
+          if (error.message?.includes('Refresh Token') || error.message?.includes('refresh_token')) {
+            console.log('ℹ️ Refresh token error (expected for new users):', error.message)
+            if (isMounted) {
+              setLoading(false)
+              if (timeoutId) clearTimeout(timeoutId)
+            }
+            return
+          }
           console.error('Error getting session:', error)
-          setLoading(false)
-          clearTimeout(timeoutId)
+          if (isMounted) {
+            setLoading(false)
+            if (timeoutId) clearTimeout(timeoutId)
+          }
           return
         }
         
@@ -226,12 +245,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
+          // Fetch profile but don't block UI if it fails
           fetchProfile(session.user.id)
             .then((profile) => {
               if (isMounted) {
                 setProfile(profile)
                 setLoading(false)
-                clearTimeout(timeoutId)
+                if (timeoutId) clearTimeout(timeoutId)
               }
             })
             .catch((error) => {
@@ -242,12 +262,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               console.error('Error fetching profile:', error)
               if (isMounted) {
                 setLoading(false)
-                clearTimeout(timeoutId)
+                if (timeoutId) clearTimeout(timeoutId)
               }
             })
         } else {
-          setLoading(false)
-          clearTimeout(timeoutId)
+          // No session - show login form immediately
+          if (isMounted) {
+            setLoading(false)
+            if (timeoutId) clearTimeout(timeoutId)
+          }
         }
       })
       .catch((error) => {
@@ -255,16 +278,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (error.name === 'AbortError' || error.message?.includes('aborted')) {
           return
         }
+        // Ignore refresh token errors
+        if (error.message?.includes('Refresh Token') || error.message?.includes('refresh_token')) {
+          console.log('ℹ️ Refresh token error during init (expected):', error.message)
+          if (isMounted) {
+            setLoading(false)
+            if (timeoutId) clearTimeout(timeoutId)
+          }
+          return
+        }
         console.error('Error in getSession:', error)
         if (isMounted) {
           setLoading(false)
-          clearTimeout(timeoutId)
+          if (timeoutId) clearTimeout(timeoutId)
         }
       })
 
     return () => {
       isMounted = false
-      clearTimeout(timeoutId)
+      if (timeoutId) clearTimeout(timeoutId)
     }
   }, [])
 
@@ -279,24 +311,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(session?.user ?? null)
 
         if (session?.user) {
-          // Wait a moment to ensure session is fully established
-          await new Promise(resolve => setTimeout(resolve, 200))
-          
           try {
             console.log('🔄 Fetching profile for user:', session.user.id, session.user.email)
             
-            // Try fetching with retry logic
-            let profileData = null
-            let retries = 3
-            while (!profileData && retries > 0) {
+            // Fetch profile with minimal retry (only 1 retry for speed)
+            let profileData = await fetchProfile(session.user.id, true)
+            if (!profileData) {
+              // Single quick retry
+              await new Promise(resolve => setTimeout(resolve, 300))
               profileData = await fetchProfile(session.user.id, true)
-              if (!profileData) {
-                retries--
-                if (retries > 0) {
-                  console.log(`⏳ Profile not found, retrying... (${retries} attempts left)`)
-                  await new Promise(resolve => setTimeout(resolve, 500))
-                }
-              }
             }
             
             if (profileData) {

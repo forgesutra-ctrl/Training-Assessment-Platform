@@ -29,13 +29,14 @@ const Login = () => {
       const from = (location.state as any)?.from?.pathname || redirectTo
       navigate(from, { replace: true })
     } else if (loginSuccess && !loading && user && !profile) {
-      // Login succeeded but profile not loaded after 3 seconds
-      setTimeout(() => {
+      // Login succeeded but profile not loaded after 2 seconds (reduced from 3)
+      const timeoutId = setTimeout(() => {
         if (!profile) {
           setError('Profile not found. Please contact support or check if your account is properly set up.')
           setLoginSuccess(false)
         }
-      }, 3000)
+      }, 2000)
+      return () => clearTimeout(timeoutId)
     }
   }, [user, profile, loading, navigate, location, loginSuccess])
 
@@ -63,8 +64,26 @@ const Login = () => {
     }
   }
 
-  // Show loading while checking auth (with timeout fallback)
-  if (loading) {
+  // Show loading only briefly - don't block login form for too long
+  // If no user after 1.5 seconds, show login form anyway
+  const [showLoginForm, setShowLoginForm] = useState(false)
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowLoginForm(true)
+    }, 1500) // Show login form after 1.5 seconds max
+    
+    // If we have a user or profile, show form immediately
+    if (user || profile || !loading) {
+      setShowLoginForm(true)
+      clearTimeout(timer)
+    }
+    
+    return () => clearTimeout(timer)
+  }, [loading, user, profile])
+
+  // Show loading only if we're still checking AND haven't hit the timeout
+  if (loading && !showLoginForm) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-50">
         <div className="text-center">

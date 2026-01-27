@@ -5,13 +5,25 @@ import './index.css'
 import { Toaster } from 'react-hot-toast'
 import ErrorBoundary from './components/ErrorBoundary'
 
-// Suppress AbortError from unhandled promise rejections
+// Suppress expected errors from unhandled promise rejections
 // These are expected when requests are cancelled during navigation/unmount
+// or when refresh tokens are missing (common for new users)
 window.addEventListener('unhandledrejection', (event) => {
-  if (event.reason?.name === 'AbortError' || 
-      event.reason?.message?.includes('aborted') ||
-      event.reason?.message?.includes('signal is aborted')) {
-    event.preventDefault() // Suppress the error
+  const reason = event.reason
+  
+  // Suppress AbortError (cancelled requests)
+  if (reason?.name === 'AbortError' || 
+      reason?.message?.includes('aborted') ||
+      reason?.message?.includes('signal is aborted')) {
+    event.preventDefault()
+    return
+  }
+  
+  // Suppress refresh token errors (expected for new users or cleared storage)
+  if (reason?.message?.includes('Refresh Token') ||
+      reason?.message?.includes('refresh_token') ||
+      reason?.message?.includes('Invalid Refresh Token')) {
+    event.preventDefault()
     return
   }
 })

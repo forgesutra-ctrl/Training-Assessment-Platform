@@ -55,6 +55,8 @@ export const supabase: SupabaseClient = (() => {
       detectSessionInUrl: true,
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       storageKey: 'sb-auth-token',
+      // Don't block on refresh token errors - allow login to proceed
+      flowType: 'pkce',
     },
   })
 
