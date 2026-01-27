@@ -234,21 +234,43 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
+        console.log('🔄 Auth state changed:', event, session?.user?.email)
         setSession(session)
         setUser(session?.user ?? null)
 
         if (session?.user) {
+          // Wait a moment to ensure session is fully established
+          await new Promise(resolve => setTimeout(resolve, 200))
+          
           try {
             console.log('🔄 Fetching profile for user:', session.user.id, session.user.email)
-            const profileData = await fetchProfile(session.user.id, true)
+            
+            // Try fetching with retry logic
+            let profileData = null
+            let retries = 3
+            while (!profileData && retries > 0) {
+              profileData = await fetchProfile(session.user.id, true)
+              if (!profileData) {
+                retries--
+                if (retries > 0) {
+                  console.log(`⏳ Profile not found, retrying... (${retries} attempts left)`)
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                }
+              }
+            }
+            
             if (profileData) {
               console.log('✅ Profile loaded in auth state change:', profileData)
               setProfile(profileData)
             } else {
-              console.error('❌ Profile is null after fetchProfile call')
+              console.error('❌ Profile is null after fetchProfile call (all retries exhausted)')
               console.error('   User ID:', session.user.id)
               console.error('   Email:', session.user.email)
-              console.error('   💡 Run diagnostic queries in Supabase to check profile status')
+              console.error('   💡 Check:')
+              console.error('      1. Profile exists in database (run diagnostic query)')
+              console.error('      2. RLS policy "Users can view their own profile" is active')
+              console.error('      3. Session token is valid')
+              // Don't set profile to null - keep trying
             }
           } catch (error: any) {
             // Ignore AbortError - it's expected when component unmounts
@@ -258,6 +280,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             console.error('❌ Error fetching profile in auth state change:', error)
             console.error('   User ID:', session?.user?.id)
             console.error('   Email:', session?.user?.email)
+            console.error('   Error details:', {
+              code: error.code,
+              message: error.message,
+              details: error.details,
+            })
           }
         } else {
           setProfile(null)
@@ -267,7 +294,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
         // Handle different auth events
         if (event === 'SIGNED_IN') {
-          toast.success('Successfully signed in!')
+          // Don't show toast here - it's shown in Login component
+          console.log('✅ SIGNED_IN event received')
         } else if (event === 'SIGNED_OUT') {
           toast.success('Successfully signed out!')
         }
@@ -364,20 +392,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       if (data.user) {
+        // Wait a moment for session to be fully established
+        // Then fetch profile - it will also be fetched via onAuthStateChange
+        // but we try here first for immediate feedback
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
         // Fetch profile after successful login
         try {
-          const profileData = await fetchProfile(data.user.id)
+          console.log('🔄 Fetching profile after signIn for user:', data.user.id)
+          const profileData = await fetchProfile(data.user.id, true)
           if (profileData) {
             setProfile(profileData)
-            console.log('✅ Profile loaded successfully:', profileData)
+            console.log('✅ Profile loaded successfully after signIn:', profileData)
             return { success: true }
           } else {
             console.warn('⚠️ Profile not found for user:', data.user.id)
-            console.warn('This might mean:')
-            console.warn('1. The user profile was not created in the profiles table')
-            console.warn('2. RLS policies are blocking profile access')
-            console.warn('3. The user ID does not match any profile')
-            return { success: false, error: 'Profile not found. Please contact support.' }
+            console.warn('💡 Profile will be fetched via onAuthStateChange listener')
+            // Don't return error - let onAuthStateChange handle it
+            // The profile should load via the auth state change listener
+            return { success: true }
           }
         } catch (profileError: any) {
           // Ignore AbortError
@@ -385,7 +418,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             return { success: true } // Return success, profile will load via onAuthStateChange
           }
           console.error('❌ Error fetching profile after login:', profileError)
-          return { success: false, error: 'Failed to load user profile. Please try again.' }
+          // Don't return error - let onAuthStateChange handle it
+          return { success: true }
         }
       }
 
