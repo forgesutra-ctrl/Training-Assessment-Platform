@@ -3,7 +3,7 @@
  * Discover relationships between variables in assessment data
  */
 
-import { AssessmentWithDetails } from '@/types'
+import { AssessmentWithDetails, ASSESSMENT_STRUCTURE } from '@/types'
 
 export interface CorrelationResult {
   variable1: string
@@ -113,34 +113,37 @@ export const analyzeCorrelation = (
 }
 
 /**
- * Build correlation matrix for all assessment parameters
+ * Build correlation matrix for all assessment parameters (21 parameters organized by 5 categories)
  */
 export const buildCorrelationMatrix = (
   assessments: AssessmentWithDetails[]
 ): CorrelationMatrix => {
-  const parameters = [
-    'trainers_readiness',
-    'communication_skills',
-    'domain_expertise',
-    'knowledge_displayed',
-    'people_management',
-    'technical_skills',
-  ]
+  // Get all 21 parameter IDs
+  const parameters: string[] = []
+  ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+    category.parameters.forEach((param) => {
+      parameters.push(param.id)
+    })
+  })
 
   const matrix: number[][] = []
   const insights: CorrelationResult[] = []
 
-  // Prepare data
-  const data = assessments.map((a: any) => ({
-    trainers_readiness: a.trainers_readiness,
-    communication_skills: a.communication_skills,
-    domain_expertise: a.domain_expertise,
-    knowledge_displayed: a.knowledge_displayed,
-    people_management: a.people_management,
-    technical_skills: a.technical_skills,
-    average_score: a.average_score,
-    assessment_count: 1, // For frequency analysis
-  }))
+  // Prepare data with all 21 parameters
+  const data = assessments.map((a: any) => {
+    const dataPoint: Record<string, number> = {
+      average_score: a.average_score || 0,
+      assessment_count: 1, // For frequency analysis
+    }
+    
+    // Add all 21 parameters
+    parameters.forEach((paramId) => {
+      const value = a[paramId] as number | null
+      dataPoint[paramId] = value && value > 0 ? value : 0
+    })
+    
+    return dataPoint
+  })
 
   // Calculate correlations
   for (let i = 0; i < parameters.length; i++) {

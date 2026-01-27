@@ -3,7 +3,8 @@
  * Functions for generating reports, exports, and analytics
  */
 
-import { AssessmentWithDetails, TrainerWithStats } from '@/types'
+import { AssessmentWithDetails, TrainerWithStats, ASSESSMENT_STRUCTURE } from '@/types'
+import { calculateCategoryAveragesAcrossAssessments } from '@/utils/trainerStats'
 import ExcelJS from 'exceljs'
 
 export interface ReportData {
@@ -191,27 +192,23 @@ export const calculatePlatformMetrics = (assessments: AssessmentWithDetails[]) =
 export const identifyImprovementAreas = (
   assessments: AssessmentWithDetails[]
 ): Array<{ parameter: string; currentAvg: number; potentialImpact: number }> => {
-  const parameters = [
-    'trainers_readiness',
-    'communication_skills',
-    'domain_expertise',
-    'knowledge_displayed',
-    'people_management',
-    'technical_skills',
-  ]
+  const results: Array<{ parameter: string; currentAvg: number; potentialImpact: number }> = []
 
-  const results = parameters.map((param) => {
-    const scores = assessments.map((a: any) => a[param]).filter(Boolean)
-    const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0
+  // Check all 21 parameters
+  ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+    category.parameters.forEach((param) => {
+      const scores = assessments.map((a: any) => a[param.id] as number | null).filter((s): s is number => s !== null && s > 0)
+      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0
 
-    // Potential impact = how much room for improvement (5.0 - current)
-    const potentialImpact = 5.0 - avg
+      // Potential impact = how much room for improvement (5.0 - current)
+      const potentialImpact = 5.0 - avg
 
-    return {
-      parameter: param.replace(/_/g, ' '),
-      currentAvg: Number(avg.toFixed(2)),
-      potentialImpact: Number(potentialImpact.toFixed(2)),
-    }
+      results.push({
+        parameter: `${category.name} - ${param.label}`,
+        currentAvg: Number(avg.toFixed(2)),
+        potentialImpact: Number(potentialImpact.toFixed(2)),
+      })
+    })
   })
 
   return results.sort((a, b) => b.potentialImpact - a.potentialImpact)
@@ -223,29 +220,21 @@ export const identifyImprovementAreas = (
 export const generateCapabilityHeatmap = (
   trainers: TrainerWithStats[],
   teams: Array<{ id: string; name: string }>
-): Array<{ team: string; parameter: string; average: number }> => {
-  const heatmapData: Array<{ team: string; parameter: string; average: number }> = []
-
-  const parameters = [
-    'trainers_readiness',
-    'communication_skills',
-    'domain_expertise',
-    'knowledge_displayed',
-    'people_management',
-    'technical_skills',
-  ]
+): Array<{ team: string; category: string; average: number }> => {
+  const heatmapData: Array<{ team: string; category: string; average: number }> = []
 
   teams.forEach((team) => {
     const teamTrainers = trainers.filter((t) => t.team_name === team.name)
     if (teamTrainers.length === 0) return
 
-    parameters.forEach((param) => {
-      // This would need actual parameter data from assessments
-      // Simplified for now
+    // Use category averages instead of individual parameters
+    ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+      // For now, use overall average as proxy for category average
+      // In a full implementation, you'd fetch actual assessments and calculate category averages
       const avg = teamTrainers.reduce((sum, t) => sum + (t.all_time_avg || 0), 0) / teamTrainers.length
       heatmapData.push({
         team: team.name,
-        parameter: param.replace(/_/g, ' '),
+        category: category.name,
         average: Number(avg.toFixed(2)),
       })
     })

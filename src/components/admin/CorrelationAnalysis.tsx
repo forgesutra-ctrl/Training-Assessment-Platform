@@ -3,6 +3,7 @@ import { TrendingUp, BarChart3, AlertCircle } from 'lucide-react'
 import { buildCorrelationMatrix, getCorrelationInsights, analyzeFrequencyVsPerformance } from '@/utils/correlationAnalysis'
 import { supabase } from '@/lib/supabase'
 import { AssessmentWithDetails } from '@/types'
+import { calculateAssessmentAverage } from '@/utils/trainerStats'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 
@@ -31,17 +32,10 @@ const CorrelationAnalysis = () => {
         return
       }
 
-      // Format assessments
+      // Format assessments (calculate average from all 21 parameters)
       const formattedAssessments: AssessmentWithDetails[] = assessments.map((a: any) => ({
         ...a,
-        average_score: (
-          a.trainers_readiness +
-          a.communication_skills +
-          a.domain_expertise +
-          a.knowledge_displayed +
-          a.people_management +
-          a.technical_skills
-        ) / 6,
+        average_score: calculateAssessmentAverage(a),
       }))
 
       // Build correlation matrix

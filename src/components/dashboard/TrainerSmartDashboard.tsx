@@ -3,7 +3,8 @@ import { TrendingUp, TrendingDown, Target, Award, BookOpen, Users } from 'lucide
 import { useAuthContext } from '@/contexts/AuthContext'
 import { getTrainerRecommendations, Recommendation } from '@/utils/recommendations'
 import { fetchTrainerAssessments } from '@/utils/trainerAssessments'
-import { TrainerAssessmentWithDetails } from '@/types'
+import { TrainerAssessmentWithDetails, ASSESSMENT_STRUCTURE } from '@/types'
+import { calculateCategoryAveragesAcrossAssessments } from '@/utils/trainerStats'
 import ActionRequiredWidget from './ActionRequiredWidget'
 import ActivityFeed from './ActivityFeed'
 import DataRefresh from './DataRefresh'
@@ -78,50 +79,23 @@ const TrainerSmartDashboard = () => {
     const lastAvg = calculateAvg(lastMonthAssessments)
     const change = lastAvg > 0 ? ((currentAvg - lastAvg) / lastAvg) * 100 : 0
 
-    // Find improving and needs attention parameters
-    const paramSums: Record<string, { current: number; last: number; count: number }> = {}
-    const params = [
-      'trainers_readiness',
-      'communication_skills',
-      'domain_expertise',
-      'knowledge_displayed',
-      'people_management',
-      'technical_skills',
-    ]
-
-    params.forEach((param) => {
-      paramSums[param] = { current: 0, last: 0, count: 0 }
-    })
-
-    currentMonthAssessments.forEach((a) => {
-      params.forEach((param) => {
-        paramSums[param].current += a[param as keyof TrainerAssessmentWithDetails] as number
-        paramSums[param].count++
-      })
-    })
-
-    lastMonthAssessments.forEach((a) => {
-      params.forEach((param) => {
-        paramSums[param].last += a[param as keyof TrainerAssessmentWithDetails] as number
-      })
-    })
+    // Find improving and needs attention categories (using 5 categories instead of 6 parameters)
+    const currentCategoryAvgs = calculateCategoryAveragesAcrossAssessments(currentMonthAssessments)
+    const lastCategoryAvgs = calculateCategoryAveragesAcrossAssessments(lastMonthAssessments)
 
     const improving: string[] = []
     const needsAttention: string[] = []
 
-    params.forEach((param) => {
-      const currentAvg = paramSums[param].count > 0
-        ? paramSums[param].current / paramSums[param].count
-        : 0
-      const lastAvg = lastMonthAssessments.length > 0
-        ? paramSums[param].last / lastMonthAssessments.length
-        : 0
+    currentCategoryAvgs.forEach((currentCat) => {
+      const lastCat = lastCategoryAvgs.find((c) => c.categoryId === currentCat.categoryId)
+      if (lastCat && currentCat.parameterCount > 0) {
+        const change = currentCat.average - lastCat.average
 
-      if (currentAvg > lastAvg + 0.2) {
-        improving.push(param.replace(/_/g, ' '))
-      }
-      if (currentAvg < 3.0) {
-        needsAttention.push(param.replace(/_/g, ' '))
+        if (change > 0.2) {
+          improving.push(currentCat.categoryName)
+        } else if (change < -0.2 || currentCat.average < 3.0) {
+          needsAttention.push(currentCat.categoryName)
+        }
       }
     })
 

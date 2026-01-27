@@ -9,7 +9,7 @@ import ManagerSmartDashboard from '@/components/dashboard/ManagerSmartDashboard'
 import NotificationDropdown from '@/components/dashboard/NotificationDropdown'
 import QuickActions from '@/components/dashboard/QuickActions'
 import SoundToggle from '@/components/ui/SoundToggle'
-import { checkAlerts, notificationService } from '@/utils/notifications'
+import { checkAlerts } from '@/utils/notifications'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 
@@ -44,12 +44,9 @@ const ManagerDashboard = () => {
 
         // Check for alerts
         const alerts = await checkAlerts(user.id, profile.role)
-        
-        // Process alerts
-        if (alerts && alerts.length > 0) {
-          alerts.forEach((alert) => {
-            notificationService.addNotification(alert)
-          })
+        const { notificationService } = await import('@/utils/notifications')
+        for (const alert of alerts) {
+          notificationService.addNotification(alert)
         }
       } catch (error: any) {
         console.error('Error loading dashboard data:', error)
@@ -99,14 +96,6 @@ const ManagerDashboard = () => {
       change: null,
     },
   ]
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
