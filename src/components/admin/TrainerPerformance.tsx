@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Search, TrendingUp, TrendingDown, Eye, Download, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { fetchAllTrainersWithStats } from '@/utils/adminQueries'
-import { TrainerWithStats } from '@/types'
+import { TrainerWithStats, ASSESSMENT_STRUCTURE } from '@/types'
 import { fetchTrainerAssessments } from '@/utils/trainerAssessments'
 import { exportToExcel, exportToCSV } from '@/utils/reporting'
+import { calculateCategoryAverages } from '@/utils/trainerStats'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 import { TrainerAssessmentWithDetails } from '@/types'
@@ -130,19 +131,27 @@ const TrainerPerformance = () => {
       // Fetch trainer assessments
       const assessments = await fetchTrainerAssessments(trainer.id)
       
-      // Format data for export
-      const exportData = assessments.map((assessment) => ({
-        'Assessment Date': new Date(assessment.assessment_date).toLocaleDateString(),
-        'Assessor': assessment.assessor_name,
-        'Trainer Readiness': assessment.trainers_readiness,
-        'Communication Skills': assessment.communication_skills,
-        'Domain Expertise': assessment.domain_expertise,
-        'Knowledge Displayed': assessment.knowledge_displayed,
-        'People Management': assessment.people_management,
-        'Technical Skills': assessment.technical_skills,
-        'Average Score': assessment.average_score,
-        'Overall Comments': assessment.overall_comments || '',
-      }))
+      // Format data for export with all 21 parameters grouped by category
+      const exportData = assessments.map((assessment) => {
+        const data: Record<string, any> = {
+          'Assessment Date': new Date(assessment.assessment_date).toLocaleDateString(),
+          'Assessor': assessment.assessor_name,
+          'Average Score': assessment.average_score,
+          'Overall Comments': assessment.overall_comments || '',
+        }
+
+        // Add all 21 parameters organized by category
+        ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+          category.parameters.forEach((param) => {
+            const rating = (assessment as any)[param.id] as number | null
+            const comments = (assessment as any)[`${param.id}_comments`] as string | null
+            data[`${category.name} - ${param.label}`] = rating || 'N/A'
+            data[`${category.name} - ${param.label} Comments`] = comments || ''
+          })
+        })
+
+        return data
+      })
 
       // Export to Excel
       await exportToExcel(
@@ -508,14 +517,62 @@ const TrainerPerformance = () => {
                               {assessment.average_score.toFixed(2)}
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-2 text-xs">
-                            <div>Readiness: {assessment.trainers_readiness}/5</div>
-                            <div>Communication: {assessment.communication_skills}/5</div>
-                            <div>Domain: {assessment.domain_expertise}/5</div>
-                            <div>Knowledge: {assessment.knowledge_displayed}/5</div>
-                            <div>People Mgmt: {assessment.people_management}/5</div>
-                            <div>Technical: {assessment.technical_skills}/5</div>
+                          {/* Category Averages */}
+                          <div className="mb-3">
+                            <div className="text-xs font-semibold text-gray-700 mb-2">Category Averages:</div>
+                            <div className="grid grid-cols-5 gap-2 text-xs">
+                              {calculateCategoryAverages(assessment).map((catAvg) => {
+                                const category = ASSESSMENT_STRUCTURE.categories.find((c) => c.id === catAvg.categoryId)
+                                return (
+                                  <div key={catAvg.categoryId} className="text-center">
+                                    <div className="text-lg">{category?.icon}</div>
+                                    <div className="font-medium">{catAvg.average.toFixed(1)}</div>
+                                    <div className="text-gray-500 truncate" title={catAvg.categoryName}>
+                                      {catAvg.categoryName.split(' ')[0]}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
+                          
+                          {/* All Parameters (Collapsible) */}
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-primary-600 hover:text-primary-800 font-medium mb-2">
+                              View All 21 Parameters
+                            </summary>
+                            <div className="mt-2 space-y-3 pl-4 border-l-2 border-gray-200">
+                              {ASSESSMENT_STRUCTURE.categories.map((category) => {
+                                const categoryParams = category.parameters.filter((param) => {
+                                  const rating = (assessment as any)[param.id] as number | null
+                                  return rating && rating > 0
+                                })
+                                
+                                if (categoryParams.length === 0) return null
+                                
+                                return (
+                                  <div key={category.id} className="space-y-1">
+                                    <div className="font-semibold text-gray-700 flex items-center gap-1">
+                                      <span>{category.icon}</span>
+                                      <span>{category.name}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1 ml-4">
+                                      {categoryParams.map((param) => {
+                                        const rating = (assessment as any)[param.id] as number | null
+                                        const comments = (assessment as any)[`${param.id}_comments`] as string | null
+                                        return (
+                                          <div key={param.id} className="flex items-center justify-between">
+                                            <span className="text-gray-600">{param.label}:</span>
+                                            <span className="font-medium">{rating}/5</span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </details>
                           {assessment.overall_comments && (
                             <div className="mt-2 text-sm text-gray-700 bg-gray-50 rounded p-2">
                               {assessment.overall_comments}

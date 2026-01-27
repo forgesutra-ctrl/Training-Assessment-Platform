@@ -1,59 +1,166 @@
-import { AssessmentWithDetails, ParameterAverage, TrendDataPoint } from '@/types'
+import { AssessmentWithDetails, ParameterAverage, TrendDataPoint, CategoryAverage, ASSESSMENT_STRUCTURE } from '@/types'
 
 export type DateRange = 'current-month' | 'last-3-months' | 'last-6-months' | 'year-to-date' | 'all-time'
 
-const PARAMETER_NAMES = {
-  trainers_readiness: "Trainer's Readiness",
-  communication_skills: 'Communication Skills',
-  domain_expertise: 'Domain Expertise',
-  knowledge_displayed: 'Knowledge Displayed',
-  people_management: 'People Management',
-  technical_skills: 'Technical Skills',
-} as const
+// Get all parameter IDs from the assessment structure
+const getAllParameterIds = (): string[] => {
+  const paramIds: string[] = []
+  ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+    category.parameters.forEach((param) => {
+      paramIds.push(param.id)
+    })
+  })
+  return paramIds
+}
+
+// Get parameter label by ID
+const getParameterLabel = (paramId: string): string => {
+  for (const category of ASSESSMENT_STRUCTURE.categories) {
+    const param = category.parameters.find((p) => p.id === paramId)
+    if (param) return param.label
+  }
+  return paramId
+}
 
 /**
- * Calculate overall average rating from assessments
+ * Calculate overall average rating from assessments (using all 21 parameters)
  */
 export const calculateAverageRating = (assessments: AssessmentWithDetails[]): number => {
   if (assessments.length === 0) return 0
 
-  const total = assessments.reduce((sum, assessment) => sum + assessment.average_score, 0)
-  return Number((total / assessments.length).toFixed(2))
+  const paramIds = getAllParameterIds()
+  let totalSum = 0
+  let totalCount = 0
+
+  assessments.forEach((assessment) => {
+    paramIds.forEach((paramId) => {
+      const rating = (assessment as any)[paramId] as number | null
+      if (rating && rating > 0) {
+        totalSum += rating
+        totalCount++
+      }
+    })
+  })
+
+  return totalCount > 0 ? Number((totalSum / totalCount).toFixed(2)) : 0
 }
 
 /**
- * Calculate average for each parameter
+ * Calculate average score for a single assessment (all 21 parameters)
+ */
+export const calculateAssessmentAverage = (assessment: AssessmentWithDetails): number => {
+  const paramIds = getAllParameterIds()
+  let sum = 0
+  let count = 0
+
+  paramIds.forEach((paramId) => {
+    const rating = (assessment as any)[paramId] as number | null
+    if (rating && rating > 0) {
+      sum += rating
+      count++
+    }
+  })
+
+  return count > 0 ? Number((sum / count).toFixed(2)) : 0
+}
+
+/**
+ * Calculate average for each of the 21 parameters
  */
 export const calculateParameterAverages = (
   assessments: AssessmentWithDetails[]
 ): ParameterAverage[] => {
+  const paramIds = getAllParameterIds()
+
   if (assessments.length === 0) {
-    return Object.keys(PARAMETER_NAMES).map((key) => ({
-      parameter: PARAMETER_NAMES[key as keyof typeof PARAMETER_NAMES],
+    return paramIds.map((paramId) => ({
+      parameter: getParameterLabel(paramId),
       average: 0,
       count: 0,
     }))
   }
 
-  const parameterKeys = [
-    'trainers_readiness',
-    'communication_skills',
-    'domain_expertise',
-    'knowledge_displayed',
-    'people_management',
-    'technical_skills',
-  ] as const
+  return paramIds.map((paramId) => {
+    let sum = 0
+    let count = 0
 
-  return parameterKeys.map((key) => {
-    const sum = assessments.reduce((acc, assessment) => {
-      return acc + (assessment[key] as number)
-    }, 0)
-    const average = sum / assessments.length
+    assessments.forEach((assessment) => {
+      const rating = (assessment as any)[paramId] as number | null
+      if (rating && rating > 0) {
+        sum += rating
+        count++
+      }
+    })
 
     return {
-      parameter: PARAMETER_NAMES[key],
-      average: Number(average.toFixed(2)),
-      count: assessments.length,
+      parameter: getParameterLabel(paramId),
+      average: count > 0 ? Number((sum / count).toFixed(2)) : 0,
+      count,
+    }
+  })
+}
+
+/**
+ * Calculate category averages (5 categories)
+ */
+export const calculateCategoryAverages = (
+  assessment: AssessmentWithDetails
+): CategoryAverage[] => {
+  return ASSESSMENT_STRUCTURE.categories.map((category) => {
+    let sum = 0
+    let count = 0
+
+    category.parameters.forEach((param) => {
+      const rating = (assessment as any)[param.id] as number | null
+      if (rating && rating > 0) {
+        sum += rating
+        count++
+      }
+    })
+
+    return {
+      categoryId: category.id,
+      categoryName: category.name,
+      average: count > 0 ? Number((sum / count).toFixed(2)) : 0,
+      parameterCount: count,
+    }
+  })
+}
+
+/**
+ * Calculate category averages across multiple assessments
+ */
+export const calculateCategoryAveragesAcrossAssessments = (
+  assessments: AssessmentWithDetails[]
+): CategoryAverage[] => {
+  if (assessments.length === 0) {
+    return ASSESSMENT_STRUCTURE.categories.map((category) => ({
+      categoryId: category.id,
+      categoryName: category.name,
+      average: 0,
+      parameterCount: 0,
+    }))
+  }
+
+  return ASSESSMENT_STRUCTURE.categories.map((category) => {
+    let totalSum = 0
+    let totalCount = 0
+
+    assessments.forEach((assessment) => {
+      category.parameters.forEach((param) => {
+        const rating = (assessment as any)[param.id] as number | null
+        if (rating && rating > 0) {
+          totalSum += rating
+          totalCount++
+        }
+      })
+    })
+
+    return {
+      categoryId: category.id,
+      categoryName: category.name,
+      average: totalCount > 0 ? Number((totalSum / totalCount).toFixed(2)) : 0,
+      parameterCount: totalCount,
     }
   })
 }

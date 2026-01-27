@@ -18,17 +18,24 @@ export const fetchTrainerAssessments = async (
 
   if (error) throw error
 
-  // Format the data
+  // Format the data - calculate average from all 21 parameters
   const assessments: TrainerAssessmentWithDetails[] = (data || []).map((assessment: any) => {
-    const ratings = [
-      assessment.trainers_readiness,
-      assessment.communication_skills,
-      assessment.domain_expertise,
-      assessment.knowledge_displayed,
-      assessment.people_management,
-      assessment.technical_skills,
+    // Get all 21 parameter ratings
+    const paramIds = [
+      'logs_in_early', 'video_always_on', 'minimal_disturbance', 'presentable_prompt', 'ready_with_tools',
+      'adequate_knowledge', 'simplifies_topics', 'encourages_participation', 'handles_questions', 'provides_context',
+      'maintains_attention', 'uses_interactive_tools', 'assesses_learning', 'clear_speech',
+      'minimal_grammar_errors', 'professional_tone', 'manages_teams_well',
+      'efficient_tool_switching', 'audio_video_clarity', 'session_recording', 'survey_assignment',
     ]
-    const average = ratings.reduce((sum: number, val: number) => sum + val, 0) / ratings.length
+    
+    const ratings = paramIds
+      .map((id) => assessment[id] as number | null)
+      .filter((rating): rating is number => rating !== null && rating > 0)
+    
+    const average = ratings.length > 0
+      ? ratings.reduce((sum: number, val: number) => sum + val, 0) / ratings.length
+      : 0
 
     return {
       ...assessment,

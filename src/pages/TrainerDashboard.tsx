@@ -96,10 +96,10 @@ const TrainerDashboard = () => {
 
         // Check for alerts
         const alerts = await checkAlerts(user.id, profile.role)
-        alerts.forEach((alert) => {
-          const notificationService = (await import('@/utils/notifications')).notificationService
+        const { notificationService } = await import('@/utils/notifications')
+        for (const alert of alerts) {
           notificationService.addNotification(alert)
-        })
+        }
       } catch (error: any) {
         console.error('Error loading trainer data:', error)
         toast.error('Failed to load assessment data')
@@ -514,6 +514,9 @@ const TrainerDashboard = () => {
               )}
             </>
           )}
+        </div>
+        </>
+        )}
 
         {activeTab === 'badges' && <BadgeSystem />}
 

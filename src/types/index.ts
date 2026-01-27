@@ -35,27 +35,152 @@ export interface Training {
   createdAt: string
 }
 
-// Assessment types (matches database schema)
+// Assessment Structure: 21 Parameters in 5 Categories
+export const ASSESSMENT_STRUCTURE = {
+  categories: [
+    {
+      id: 'trainer_readiness',
+      name: 'Trainer Initial Readiness',
+      color: 'blue',
+      icon: '🎯',
+      parameters: [
+        { id: 'logs_in_early', label: 'Early Login', description: 'Trainer logs in a few minutes before the session to host the participants' },
+        { id: 'video_always_on', label: 'Video Always On', description: 'Trainer on video at all times for the training' },
+        { id: 'minimal_disturbance', label: 'Minimal Disturbance', description: 'Trainer ensured minimal / zero background disturbance' },
+        { id: 'presentable_prompt', label: 'Presentable & Prompt', description: 'Trainer looks presentable and prompt for the training session' },
+        { id: 'ready_with_tools', label: 'Ready with Tools', description: 'Trainer is ready with content and tools needed for the session with no struggle during screen share' }
+      ]
+    },
+    {
+      id: 'expertise_delivery',
+      name: 'Trainer Expertise & Delivery',
+      color: 'green',
+      icon: '📚',
+      parameters: [
+        { id: 'adequate_knowledge', label: 'Subject Knowledge', description: 'Trainer demonstrated adequate knowledge of the subject' },
+        { id: 'simplifies_topics', label: 'Simplifies Topics', description: 'Trainer was able to simplify complex topics and explain in simple terms for ease of participants\' understanding' },
+        { id: 'encourages_participation', label: 'Encourages Participation', description: 'Trainer encouraged participation' },
+        { id: 'handles_questions', label: 'Handles Questions', description: 'Trainer encouraged questions from the participants and provided real-time responses' },
+        { id: 'provides_context', label: 'Provides Context', description: 'Trainer was able to provide context to learning material and relate to BU / Production requirements' }
+      ]
+    },
+    {
+      id: 'engagement_interaction',
+      name: 'Participant Engagement & Interaction',
+      color: 'purple',
+      icon: '👥',
+      parameters: [
+        { id: 'maintains_attention', label: 'Maintains Attention', description: 'Trainer kept every participants attention to the session' },
+        { id: 'uses_interactive_tools', label: 'Uses Interactive Tools', description: 'Trainer engaged participants with quiz / polls / activities' },
+        { id: 'assesses_learning', label: 'Assesses Learning', description: 'Trainer called out to participants to assess learning or confirm understanding' },
+        { id: 'clear_speech', label: 'Clear Speech', description: 'Trainer maintained clarity of speech and acceptable rate of speech' }
+      ]
+    },
+    {
+      id: 'communication',
+      name: 'Communication Skills',
+      color: 'orange',
+      icon: '💬',
+      parameters: [
+        { id: 'minimal_grammar_errors', label: 'Grammar & Language', description: 'Trainer spoke well with little / no grammatical errors' },
+        { id: 'professional_tone', label: 'Professional Tone', description: 'Trainer sounded energetic and maintained a professional tone throughout the session' },
+        { id: 'manages_teams_well', label: 'Manages Teams', description: 'Trainer displayed efficiency to manage Teams' }
+      ]
+    },
+    {
+      id: 'technical_acumen',
+      name: 'Technical Acumen',
+      color: 'indigo',
+      icon: '⚙️',
+      parameters: [
+        { id: 'efficient_tool_switching', label: 'Tool Switching', description: 'Trainer was efficient in toggling between various tools during screen share' },
+        { id: 'audio_video_clarity', label: 'Audio/Video Clarity', description: 'Trainer ensured audio / video clarity throughout the session' },
+        { id: 'session_recording', label: 'Session Recording', description: 'Trainer recorded the session for reference of participants' },
+        { id: 'survey_assignment', label: 'Survey Assignment', description: 'Trainer assigned survey / assessment seamlessly' }
+      ]
+    }
+  ]
+} as const
+
+// Helper type to get all parameter IDs
+export type ParameterId = typeof ASSESSMENT_STRUCTURE.categories[number]['parameters'][number]['id']
+
+// Assessment types (matches database schema with 21 parameters)
 export interface ManagerAssessment {
   id: string
   trainer_id: string
   assessor_id: string
   assessment_date: string
-  trainers_readiness: number
-  trainers_readiness_comments: string | null
-  communication_skills: number
-  communication_skills_comments: string | null
-  domain_expertise: number
-  domain_expertise_comments: string | null
-  knowledge_displayed: number
-  knowledge_displayed_comments: string | null
-  people_management: number
-  people_management_comments: string | null
-  technical_skills: number
-  technical_skills_comments: string | null
+  
+  // Category 1: Trainer Initial Readiness (5 parameters)
+  logs_in_early: number | null
+  logs_in_early_comments: string | null
+  video_always_on: number | null
+  video_always_on_comments: string | null
+  minimal_disturbance: number | null
+  minimal_disturbance_comments: string | null
+  presentable_prompt: number | null
+  presentable_prompt_comments: string | null
+  ready_with_tools: number | null
+  ready_with_tools_comments: string | null
+  
+  // Category 2: Trainer Expertise & Delivery (5 parameters)
+  adequate_knowledge: number | null
+  adequate_knowledge_comments: string | null
+  simplifies_topics: number | null
+  simplifies_topics_comments: string | null
+  encourages_participation: number | null
+  encourages_participation_comments: string | null
+  handles_questions: number | null
+  handles_questions_comments: string | null
+  provides_context: number | null
+  provides_context_comments: string | null
+  
+  // Category 3: Participant Engagement & Interaction (4 parameters)
+  maintains_attention: number | null
+  maintains_attention_comments: string | null
+  uses_interactive_tools: number | null
+  uses_interactive_tools_comments: string | null
+  assesses_learning: number | null
+  assesses_learning_comments: string | null
+  clear_speech: number | null
+  clear_speech_comments: string | null
+  
+  // Category 4: Communication Skills (3 parameters)
+  minimal_grammar_errors: number | null
+  minimal_grammar_errors_comments: string | null
+  professional_tone: number | null
+  professional_tone_comments: string | null
+  manages_teams_well: number | null
+  manages_teams_well_comments: string | null
+  
+  // Category 5: Technical Acumen (4 parameters)
+  efficient_tool_switching: number | null
+  efficient_tool_switching_comments: string | null
+  audio_video_clarity: number | null
+  audio_video_clarity_comments: string | null
+  session_recording: number | null
+  session_recording_comments: string | null
+  survey_assignment: number | null
+  survey_assignment_comments: string | null
+  
   overall_comments: string | null
   created_at: string
   updated_at: string
+}
+
+// Helper type for assessment form data
+export interface Assessment21Data {
+  [key: string]: number | string | null
+  // All 21 rating fields and comment fields will be dynamically typed
+}
+
+// Category average type
+export interface CategoryAverage {
+  categoryId: string
+  categoryName: string
+  average: number
+  parameterCount: number
 }
 
 // Assessment with related data
@@ -133,13 +258,12 @@ export interface MonthlyTrend {
   average_rating: number
   assessment_count: number
   trainers_assessed: number
-  parameter_averages: {
-    trainers_readiness: number
-    communication_skills: number
-    domain_expertise: number
-    knowledge_displayed: number
-    people_management: number
-    technical_skills: number
+  category_averages: {
+    trainer_readiness: number
+    expertise_delivery: number
+    engagement_interaction: number
+    communication: number
+    technical_acumen: number
   }
 }
 

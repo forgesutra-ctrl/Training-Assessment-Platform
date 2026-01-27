@@ -1,9 +1,21 @@
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Calendar, User, Save, AlertCircle } from 'lucide-react'
+import {
+  ArrowLeft,
+  Calendar,
+  User,
+  Save,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  Info,
+  Sparkles,
+} from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import { ASSESSMENT_STRUCTURE, ManagerAssessment, ParameterId } from '@/types'
 import StarRating from './StarRating'
 import LoadingSpinner from './LoadingSpinner'
 import AIFeedbackAssistant from './AIFeedbackAssistant'
@@ -25,37 +37,14 @@ interface Trainer {
 interface AssessmentFormData {
   trainer_id: string
   assessment_date: string
-  trainers_readiness: number
-  trainers_readiness_comments: string
-  communication_skills: number
-  communication_skills_comments: string
-  domain_expertise: number
-  domain_expertise_comments: string
-  knowledge_displayed: number
-  knowledge_displayed_comments: string
-  people_management: number
-  people_management_comments: string
-  technical_skills: number
-  technical_skills_comments: string
-  overall_comments: string
+  [key: string]: string | number | null
 }
 
 interface FormErrors {
-  trainer_id?: string
-  assessment_date?: string
-  trainers_readiness?: string
-  trainers_readiness_comments?: string
-  communication_skills?: string
-  communication_skills_comments?: string
-  domain_expertise?: string
-  domain_expertise_comments?: string
-  knowledge_displayed?: string
-  knowledge_displayed_comments?: string
-  people_management?: string
-  people_management_comments?: string
-  technical_skills?: string
-  technical_skills_comments?: string
+  [key: string]: string
 }
+
+const TOTAL_PARAMETERS = 21
 
 const AssessmentForm = () => {
   const { profile, user } = useAuthContext()
@@ -64,26 +53,57 @@ const AssessmentForm = () => {
   const [submitting, setSubmitting] = useState(false)
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [errors, setErrors] = useState<FormErrors>({})
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['trainer_readiness']))
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [confettiTrigger, setConfettiTrigger] = useState(false)
 
-  const [formData, setFormData] = useState<AssessmentFormData>({
-    trainer_id: '',
-    assessment_date: new Date().toISOString().split('T')[0],
-    trainers_readiness: 0,
-    trainers_readiness_comments: '',
-    communication_skills: 0,
-    communication_skills_comments: '',
-    domain_expertise: 0,
-    domain_expertise_comments: '',
-    knowledge_displayed: 0,
-    knowledge_displayed_comments: '',
-    people_management: 0,
-    people_management_comments: '',
-    technical_skills: 0,
-    technical_skills_comments: '',
-    overall_comments: '',
-  })
+  // Initialize form data with all 21 parameters
+  const initializeFormData = (): AssessmentFormData => {
+    const data: AssessmentFormData = {
+      trainer_id: '',
+      assessment_date: new Date().toISOString().split('T')[0],
+      overall_comments: '',
+    }
 
-  // Fetch eligible trainers (not direct reports)
+    // Add all 21 parameters with null values
+    ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+      category.parameters.forEach((param) => {
+        data[param.id] = null
+        data[`${param.id}_comments`] = ''
+      })
+    })
+
+    return data
+  }
+
+  const [formData, setFormData] = useState<AssessmentFormData>(initializeFormData)
+
+  // Load draft from localStorage
+  useEffect(() => {
+    const draft = localStorage.getItem('assessment_draft')
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft)
+        setFormData((prev) => ({ ...parsed, ...prev }))
+        toast.success('Draft restored', { duration: 2000 })
+      } catch (e) {
+        console.error('Failed to load draft:', e)
+      }
+    }
+  }, [])
+
+  // Auto-save draft every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (formData.trainer_id) {
+        localStorage.setItem('assessment_draft', JSON.stringify(formData))
+      }
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [formData])
+
+  // Fetch eligible trainers
   useEffect(() => {
     const fetchEligibleTrainers = async () => {
       if (!profile || !user) {
@@ -92,14 +112,13 @@ const AssessmentForm = () => {
       }
 
       try {
-        // Fetch trainers where reporting_manager_id != current manager's id
         const { data, error } = await supabase
           .from('profiles')
           .select(`
             id,
             full_name,
             team_id,
-            teams(team_name)
+            teams!profiles_team_id_fkey(name)
           `)
           .eq('role', 'trainer')
           .neq('reporting_manager_id', user.id)
@@ -107,17 +126,14 @@ const AssessmentForm = () => {
 
         if (error) throw error
 
-        const formattedTrainers: Trainer[] = (data || []).map((trainer: any) => {
-          const team = Array.isArray(trainer.teams) ? trainer.teams[0] : trainer.teams
-          return {
-            id: trainer.id,
-            full_name: trainer.full_name,
-            team_id: trainer.team_id,
-            team_name: team?.team_name || 'No Team',
-          }
-        })
-
-        setTrainers(formattedTrainers)
+        setTrainers(
+          (data || []).map((t: any) => ({
+            id: t.id,
+            full_name: t.full_name,
+            team_id: t.team_id,
+            team_name: t.teams?.name || null,
+          }))
+        )
       } catch (error: any) {
         console.error('Error fetching trainers:', error)
         toast.error('Failed to load trainers')
@@ -129,6 +145,74 @@ const AssessmentForm = () => {
     fetchEligibleTrainers()
   }, [profile, user])
 
+  // Calculate completion progress
+  const getCompletionProgress = () => {
+    let completed = 0
+    ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+      category.parameters.forEach((param) => {
+        const rating = formData[param.id] as number
+        const comments = formData[`${param.id}_comments`] as string
+        if (rating && rating > 0 && comments && comments.length >= 20) {
+          completed++
+        }
+      })
+    })
+    return { completed, total: TOTAL_PARAMETERS }
+  }
+
+  // Check if category is complete
+  const isCategoryComplete = (categoryId: string) => {
+    const category = ASSESSMENT_STRUCTURE.categories.find((c) => c.id === categoryId)
+    if (!category) return false
+
+    return category.parameters.every((param) => {
+      const rating = formData[param.id] as number
+      const comments = formData[`${param.id}_comments`] as string
+      return rating && rating > 0 && comments && comments.length >= 20
+    })
+  }
+
+  // Toggle category expansion
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategories((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId)
+      } else {
+        newSet.add(categoryId)
+      }
+      return newSet
+    })
+  }
+
+  // Handle rating change
+  const handleRatingChange = (paramId: ParameterId, value: number) => {
+    setFormData((prev) => ({ ...prev, [paramId]: value }))
+    // Clear error for this field
+    if (errors[paramId]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[paramId]
+        return newErrors
+      })
+    }
+  }
+
+  // Handle comment change
+  const handleCommentChange = (paramId: ParameterId, value: string) => {
+    setFormData((prev) => ({ ...prev, [`${paramId}_comments`]: value }))
+    // Clear error for this field
+    const errorKey = `${paramId}_comments`
+    if (errors[errorKey]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev }
+        delete newErrors[errorKey]
+        return newErrors
+      })
+    }
+  }
+
+  // Validate form
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
 
@@ -140,39 +224,33 @@ const AssessmentForm = () => {
       newErrors.assessment_date = 'Please select an assessment date'
     }
 
-    const ratingFields = [
-      'trainers_readiness',
-      'communication_skills',
-      'domain_expertise',
-      'knowledge_displayed',
-      'people_management',
-      'technical_skills',
-    ] as const
+    // Validate all 21 parameters
+    ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+      category.parameters.forEach((param) => {
+        const rating = formData[param.id] as number
+        const comments = formData[`${param.id}_comments`] as string
 
-    ratingFields.forEach((field) => {
-      if (formData[field] === 0) {
-        newErrors[field] = 'Please select a rating'
-      }
-
-      const commentField = `${field}_comments` as keyof AssessmentFormData
-      const comment = formData[commentField] as string
-
-      if (!comment || comment.trim().length < 20) {
-        newErrors[commentField as keyof FormErrors] = 'Comments must be at least 20 characters'
-      } else if (comment.length > 500) {
-        newErrors[commentField as keyof FormErrors] = 'Comments must be less than 500 characters'
-      }
+        if (!rating || rating === 0) {
+          newErrors[param.id] = `Please provide a rating for ${param.label}`
+        } else if (!comments || comments.length < 20) {
+          newErrors[`${param.id}_comments`] = `Comments must be at least 20 characters for ${param.label}`
+        } else if (comments.length > 500) {
+          newErrors[`${param.id}_comments`] = `Comments must not exceed 500 characters`
+        }
+      })
     })
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!validateForm()) {
-      toast.error('Please fix all errors before submitting')
+      toast.error('Please complete all required fields')
+      soundManager.playError()
       return
     }
 
@@ -184,171 +262,47 @@ const AssessmentForm = () => {
     setSubmitting(true)
 
     try {
-      const { error } = await supabase.from('assessments').insert({
+      // Build assessment object
+      const assessmentData: any = {
         trainer_id: formData.trainer_id,
         assessor_id: user.id,
         assessment_date: formData.assessment_date,
-        trainers_readiness: formData.trainers_readiness,
-        trainers_readiness_comments: formData.trainers_readiness_comments.trim(),
-        communication_skills: formData.communication_skills,
-        communication_skills_comments: formData.communication_skills_comments.trim(),
-        domain_expertise: formData.domain_expertise,
-        domain_expertise_comments: formData.domain_expertise_comments.trim(),
-        knowledge_displayed: formData.knowledge_displayed,
-        knowledge_displayed_comments: formData.knowledge_displayed_comments.trim(),
-        people_management: formData.people_management,
-        people_management_comments: formData.people_management_comments.trim(),
-        technical_skills: formData.technical_skills,
-        technical_skills_comments: formData.technical_skills_comments.trim(),
-        overall_comments: formData.overall_comments.trim() || null,
+        overall_comments: formData.overall_comments || null,
+      }
+
+      // Add all 21 parameters
+      ASSESSMENT_STRUCTURE.categories.forEach((category) => {
+        category.parameters.forEach((param) => {
+          assessmentData[param.id] = formData[param.id]
+          assessmentData[`${param.id}_comments`] = formData[`${param.id}_comments`]
+        })
       })
 
-      if (error) {
-        if (error.message.includes('cannot assess their direct reports')) {
-          toast.error('You cannot assess your direct reports')
-        } else {
-          throw error
-        }
-        return
-      }
+      const { error } = await supabase.from('assessments').insert([assessmentData])
+
+      if (error) throw error
+
+      // Clear draft
+      localStorage.removeItem('assessment_draft')
 
       // Celebration!
       setConfettiTrigger(true)
       setShowSuccess(true)
       soundManager.playSuccess()
       toast.success('Assessment submitted successfully! 🎉')
-      
+
       setTimeout(() => {
         setConfettiTrigger(false)
         setShowSuccess(false)
-      }, 3000)
-      
-      // Clear form
-      setFormData({
-        trainer_id: '',
-        assessment_date: new Date().toISOString().split('T')[0],
-        trainers_readiness: 0,
-        trainers_readiness_comments: '',
-        communication_skills: 0,
-        communication_skills_comments: '',
-        domain_expertise: 0,
-        domain_expertise_comments: '',
-        knowledge_displayed: 0,
-        knowledge_displayed_comments: '',
-        people_management: 0,
-        people_management_comments: '',
-        technical_skills: 0,
-        technical_skills_comments: '',
-        overall_comments: '',
-      })
-      setErrors({})
-
-      // Navigate back to dashboard after short delay
-      setTimeout(() => {
         navigate('/manager/dashboard')
-      }, 1500)
+      }, 3000)
     } catch (error: any) {
       console.error('Error submitting assessment:', error)
       toast.error(error.message || 'Failed to submit assessment')
+      soundManager.playError()
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const handleRatingChange = (field: keyof AssessmentFormData, value: number) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-    // Clear error for this field
-    if (errors[field as keyof FormErrors]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[field as keyof FormErrors]
-        return newErrors
-      })
-    }
-  }
-
-  const handleCommentChange = (field: keyof AssessmentFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-    // Clear error for this field
-    const errorField = field as keyof FormErrors
-    if (errors[errorField]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[errorField]
-        return newErrors
-      })
-    }
-  }
-
-  const renderRatingSection = (
-    title: string,
-    ratingField: keyof AssessmentFormData,
-    commentField: keyof AssessmentFormData,
-    description?: string
-  ) => {
-    const rating = formData[ratingField] as number
-    const comment = formData[commentField] as string
-    const commentError = errors[commentField as keyof FormErrors]
-
-    return (
-      <AnimatedCard className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">{title}</h3>
-          {description && (
-            <p className="text-sm text-gray-600">{description}</p>
-          )}
-        </div>
-
-        <StarRating
-          value={rating}
-          onChange={(value) => handleRatingChange(ratingField, value)}
-          required
-          error={errors[ratingField as keyof FormErrors]}
-        />
-
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Comments <span className="text-red-500">*</span>
-              <span className="text-gray-500 font-normal ml-2">
-                ({comment.length}/500 characters, minimum 20)
-              </span>
-            </label>
-            {rating > 0 && (
-              <div className="flex-shrink-0">
-                <AIFeedbackAssistant
-                  rating={rating}
-                  parameter={title}
-                  onSuggestionSelect={(suggestion) => handleCommentChange(commentField, suggestion)}
-                  currentValue={comment}
-                />
-              </div>
-            )}
-          </div>
-          <textarea
-            value={comment}
-            onChange={(e) => handleCommentChange(commentField, e.target.value)}
-            rows={4}
-            className={`input-field resize-none ${
-              commentError ? 'border-red-300 focus:ring-red-500' : ''
-            }`}
-            placeholder="Provide detailed feedback (minimum 20 characters)..."
-            required
-          />
-          {commentError && (
-            <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-              <AlertCircle className="w-4 h-4" />
-              {commentError}
-            </p>
-          )}
-          {!commentError && comment.length > 0 && comment.length < 20 && (
-            <p className="mt-1 text-sm text-yellow-600">
-              {20 - comment.length} more characters required
-            </p>
-          )}
-        </div>
-      </div>
-    )
   }
 
   if (loading) {
@@ -359,187 +313,315 @@ const AssessmentForm = () => {
     )
   }
 
+  const progress = getCompletionProgress()
+  const allComplete = progress.completed === progress.total
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <Confetti trigger={confettiTrigger} variant="success" />
+      <SuccessAnimation
+        show={showSuccess}
+        message="Assessment submitted successfully!"
+        onComplete={() => setShowSuccess(false)}
+      />
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-6">
-          <button
+          <AnimatedButton
+            variant="ghost"
             onClick={() => navigate('/manager/dashboard')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4"
+            className="mb-4"
           >
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back to Dashboard</span>
-          </button>
-          <h1 className="text-3xl font-bold text-gray-900">New Assessment</h1>
-          <p className="text-gray-600 mt-2">Complete the assessment form below</p>
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            Back to Dashboard
+          </AnimatedButton>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Training Assessment</h1>
+              <p className="text-gray-600">Evaluate trainer performance across 21 detailed parameters</p>
+            </div>
+          </div>
         </div>
+
+        {/* Progress Indicator */}
+        <AnimatedCard className="mb-6 bg-gradient-to-r from-primary-50 to-primary-100 border-primary-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-primary-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                {progress.completed}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {progress.completed} of {progress.total} Parameters Completed
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {allComplete ? '✅ Ready to submit!' : `${progress.total - progress.completed} remaining`}
+                </p>
+              </div>
+            </div>
+            <div className="w-48">
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(progress.completed / progress.total) * 100}%` }}
+                  className="bg-primary-600 h-3 rounded-full transition-all duration-500"
+                />
+              </div>
+            </div>
+          </div>
+        </AnimatedCard>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Trainer Selection */}
-          <div className="card">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <User className="w-4 h-4 inline mr-2" />
-              Select Trainer <span className="text-red-500">*</span>
-            </label>
-            {trainers.length === 0 ? (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  No eligible trainers available. You can only assess trainers from other teams (not your direct reports).
-                </p>
-              </div>
-            ) : (
-              <>
+          <AnimatedCard>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Trainer <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={formData.trainer_id}
-                  onChange={(e) => {
-                    setFormData((prev) => ({ ...prev, trainer_id: e.target.value }))
-                    if (errors.trainer_id) {
-                      setErrors((prev) => {
-                        const newErrors = { ...prev }
-                        delete newErrors.trainer_id
-                        return newErrors
-                      })
-                    }
-                  }}
-                  className={`input-field ${errors.trainer_id ? 'border-red-300 focus:ring-red-500' : ''}`}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, trainer_id: e.target.value }))}
+                  className="input-field"
                   required
                 >
-                  <option value="">-- Select a trainer --</option>
+                  <option value="">Choose a trainer...</option>
                   {trainers.map((trainer) => (
                     <option key={trainer.id} value={trainer.id}>
-                      {trainer.full_name} - {trainer.team_name}
+                      {trainer.full_name} {trainer.team_name ? `(${trainer.team_name})` : ''}
                     </option>
                   ))}
                 </select>
                 {errors.trainer_id && (
-                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    {errors.trainer_id}
-                  </p>
+                  <p className="mt-1 text-sm text-red-600">{errors.trainer_id}</p>
                 )}
-              </>
-            )}
-          </div>
+              </div>
 
-          {/* Assessment Date */}
-          <div className="card">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Calendar className="w-4 h-4 inline mr-2" />
-              Assessment Date <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              value={formData.assessment_date}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, assessment_date: e.target.value }))
-                if (errors.assessment_date) {
-                  setErrors((prev) => {
-                    const newErrors = { ...prev }
-                    delete newErrors.assessment_date
-                    return newErrors
-                  })
-                }
-              }}
-              className={`input-field ${errors.assessment_date ? 'border-red-300 focus:ring-red-500' : ''}`}
-              required
-            />
-            {errors.assessment_date && (
-              <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" />
-                {errors.assessment_date}
-              </p>
-            )}
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assessment Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.assessment_date}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, assessment_date: e.target.value }))}
+                  className="input-field"
+                  required
+                />
+                {errors.assessment_date && (
+                  <p className="mt-1 text-sm text-red-600">{errors.assessment_date}</p>
+                )}
+              </div>
+            </div>
+          </AnimatedCard>
 
-          {/* Rating Sections */}
-          {renderRatingSection(
-            "Trainer's Readiness",
-            'trainers_readiness',
-            'trainers_readiness_comments',
-            'How well-prepared was the trainer for the session?'
-          )}
+          {/* Category Sections */}
+          {ASSESSMENT_STRUCTURE.categories.map((category) => {
+            const isExpanded = expandedCategories.has(category.id)
+            const isComplete = isCategoryComplete(category.id)
+            const categoryProgress = category.parameters.filter((param) => {
+              const rating = formData[param.id] as number
+              const comments = formData[`${param.id}_comments`] as string
+              return rating && rating > 0 && comments && comments.length >= 20
+            }).length
 
-          {renderRatingSection(
-            'Communication Skills',
-            'communication_skills',
-            'communication_skills_comments',
-            'How effective was the trainer\'s communication?'
-          )}
+            return (
+              <AnimatedCard
+                key={category.id}
+                className={`border-2 ${isComplete ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}
+              >
+                {/* Category Header */}
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(category.id)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`text-3xl ${isComplete ? 'opacity-100' : 'opacity-60'}`}>
+                      {category.icon}
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                        {category.name}
+                        {isComplete && (
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        )}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {categoryProgress} of {category.parameters.length} parameters completed
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-400" />
+                    )}
+                  </div>
+                </button>
 
-          {renderRatingSection(
-            'Domain Expertise',
-            'domain_expertise',
-            'domain_expertise_comments',
-            'How strong was the trainer\'s subject matter knowledge?'
-          )}
+                {/* Category Content */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-4 pb-4 space-y-6 border-t border-gray-200 pt-4 mt-4">
+                        {category.parameters.map((param) => {
+                          const rating = (formData[param.id] as number) || 0
+                          const comments = (formData[`${param.id}_comments`] as string) || ''
+                          const ratingError = errors[param.id]
+                          const commentError = errors[`${param.id}_comments`]
 
-          {renderRatingSection(
-            'Knowledge Displayed',
-            'knowledge_displayed',
-            'knowledge_displayed_comments',
-            'How well did the trainer demonstrate their knowledge?'
-          )}
+                          return (
+                            <div key={param.id} className="space-y-3">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <label className="text-base font-semibold text-gray-900">
+                                      {param.label}
+                                    </label>
+                                    <div className="group relative">
+                                      <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                                      <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                        {param.description}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mb-3">{param.description}</p>
+                                </div>
+                              </div>
 
-          {renderRatingSection(
-            'Real-time People Management',
-            'people_management',
-            'people_management_comments',
-            'How effectively did the trainer manage participants?'
-          )}
+                              <div className="space-y-3">
+                                <div>
+                                  <StarRating
+                                    value={rating}
+                                    onChange={(value) => handleRatingChange(param.id as ParameterId, value)}
+                                    required
+                                    error={ratingError}
+                                  />
+                                  {ratingError && (
+                                    <ShakeOnError hasError={!!ratingError}>
+                                      <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                        <AlertCircle className="w-4 h-4" />
+                                        {ratingError}
+                                      </p>
+                                    </ShakeOnError>
+                                  )}
+                                </div>
 
-          {renderRatingSection(
-            'Technical Skills (Laptop, Meeting Tools, Screen Sharing)',
-            'technical_skills',
-            'technical_skills_comments',
-            'How proficient was the trainer with technical tools?'
-          )}
+                                {rating > 0 && (
+                                  <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <label className="block text-sm font-medium text-gray-700">
+                                        Comments <span className="text-red-500">*</span>
+                                        <span className="text-gray-500 font-normal ml-2">
+                                          ({comments.length}/500 characters, minimum 20)
+                                        </span>
+                                      </label>
+                                      <div className="flex-shrink-0">
+                                        <AIFeedbackAssistant
+                                          rating={rating}
+                                          parameter={param.label}
+                                          onSuggestionSelect={(suggestion) =>
+                                            handleCommentChange(param.id as ParameterId, suggestion)
+                                          }
+                                          currentValue={comments}
+                                        />
+                                      </div>
+                                    </div>
+                                    <textarea
+                                      value={comments}
+                                      onChange={(e) => handleCommentChange(param.id as ParameterId, e.target.value)}
+                                      rows={4}
+                                      className={`input-field resize-none ${
+                                        commentError ? 'border-red-300 focus:ring-red-500' : ''
+                                      }`}
+                                      placeholder="Provide detailed feedback (minimum 20 characters)..."
+                                      required
+                                    />
+                                    <ShakeOnError hasError={!!commentError}>
+                                      {commentError && (
+                                        <motion.p
+                                          initial={{ opacity: 0 }}
+                                          animate={{ opacity: 1 }}
+                                          className="mt-1 text-sm text-red-600 flex items-center gap-1"
+                                        >
+                                          <AlertCircle className="w-4 h-4" />
+                                          {commentError}
+                                        </motion.p>
+                                      )}
+                                    </ShakeOnError>
+                                    {!commentError && comments.length > 0 && comments.length < 20 && (
+                                      <p className="mt-1 text-sm text-yellow-600">
+                                        {20 - comments.length} more characters required
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </AnimatedCard>
+            )
+          })}
 
           {/* Overall Comments */}
-          <div className="card">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Overall Comments
-              <span className="text-gray-500 font-normal ml-2">(Optional)</span>
-            </label>
-            <textarea
-              value={formData.overall_comments}
-              onChange={(e) => handleCommentChange('overall_comments', e.target.value)}
-              rows={5}
-              className="input-field resize-none"
-              placeholder="Any additional feedback or observations..."
-              maxLength={1000}
-            />
-            <p className="mt-1 text-sm text-gray-500">
-              {formData.overall_comments.length}/1000 characters
-            </p>
-          </div>
+          <AnimatedCard>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Overall Comments (Optional)
+              </label>
+              <textarea
+                value={formData.overall_comments || ''}
+                onChange={(e) => setFormData((prev) => ({ ...prev, overall_comments: e.target.value }))}
+                rows={4}
+                className="input-field resize-none"
+                placeholder="Any additional overall feedback or observations..."
+              />
+            </div>
+          </AnimatedCard>
 
           {/* Submit Button */}
-          <div className="flex gap-4 pt-4">
-            <button
-              type="button"
-              onClick={() => navigate('/manager/dashboard')}
-              className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
-              disabled={submitting}
-            >
-              Cancel
-            </button>
+          <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+            <div className="text-sm text-gray-600">
+              {allComplete ? (
+                <span className="flex items-center gap-2 text-green-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                  All parameters completed. Ready to submit!
+                </span>
+              ) : (
+                `Complete all ${progress.total - progress.completed} remaining parameters to submit`
+              )}
+            </div>
             <AnimatedButton
               type="submit"
               variant="primary"
               size="lg"
-              disabled={submitting}
-              className="flex-1"
+              disabled={submitting || !allComplete}
+              className="min-w-[200px]"
               onClick={() => soundManager.playClick()}
             >
               {submitting ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                   Submitting...
                 </>
               ) : (
                 <>
-                  <Save className="w-5 h-5" />
+                  <Save className="w-5 h-5 mr-2" />
                   Submit Assessment
                 </>
               )}

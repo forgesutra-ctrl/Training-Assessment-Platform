@@ -258,7 +258,7 @@ export const getTrainerRecommendations = async (trainerId: string): Promise<Reco
             id: 'improving',
             type: 'insight',
             priority: 'low',
-            title: 'You're improving!',
+            title: "You're improving!",
             description: `Your average rating increased by ${change.toFixed(1)}% this month. Great progress!`,
             metadata: { change, currentAvg, lastAvg },
           })

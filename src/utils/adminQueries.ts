@@ -10,6 +10,7 @@ import {
   RecentActivity,
   TopPerformer,
 } from '@/types'
+import { calculateAssessmentAverage } from '@/utils/trainerStats'
 
 /**
  * Fetch platform-wide statistics
@@ -30,21 +31,13 @@ export const fetchPlatformStats = async (): Promise<PlatformStats> => {
     .select('*', { count: 'exact', head: true })
     .gte('created_at', monthStart.toISOString())
 
-  // Platform average rating
+  // Platform average rating (using all 21 parameters)
   const { data: allAssessments } = await supabase.from('assessments').select('*')
 
   let platformAverage = 0
   if (allAssessments && allAssessments.length > 0) {
     const totalRating = allAssessments.reduce((sum, a) => {
-      const avg =
-        (a.trainers_readiness +
-          a.communication_skills +
-          a.domain_expertise +
-          a.knowledge_displayed +
-          a.people_management +
-          a.technical_skills) /
-        6
-      return sum + avg
+      return sum + calculateAssessmentAverage(a as any)
     }, 0)
     platformAverage = Number((totalRating / allAssessments.length).toFixed(2))
   }
@@ -123,16 +116,7 @@ export const fetchAllTrainersWithStats = async (
     const calculateAverage = (assessments: any[]) => {
       if (assessments.length === 0) return 0
       const total = assessments.reduce((sum, a) => {
-        return (
-          sum +
-          (a.trainers_readiness +
-            a.communication_skills +
-            a.domain_expertise +
-            a.knowledge_displayed +
-            a.people_management +
-            a.technical_skills) /
-            6
-        )
+        return sum + calculateAssessmentAverage(a)
       }, 0)
       return Number((total / assessments.length).toFixed(2))
     }
@@ -244,22 +228,13 @@ export const fetchManagerActivity = async (): Promise<ManagerActivity[]> => {
       (a) => new Date(a.created_at) >= yearStart
     )
 
-    // Calculate average rating given
+    // Calculate average rating given (using all 21 parameters)
     const avgRating =
       managerAssessments.length > 0
         ? Number(
             (
               managerAssessments.reduce((sum, a) => {
-                return (
-                  sum +
-                  (a.trainers_readiness +
-                    a.communication_skills +
-                    a.domain_expertise +
-                    a.knowledge_displayed +
-                    a.people_management +
-                    a.technical_skills) /
-                    6
-                )
+                return sum + calculateAssessmentAverage(a)
               }, 0) / managerAssessments.length
             ).toFixed(2)
           )
@@ -320,51 +295,83 @@ export const fetchMonthlyTrends = async (months: number = 12): Promise<MonthlyTr
         average_rating: 0,
         assessment_count: 0,
         trainers_assessed: 0,
-        parameter_averages: {
-          trainers_readiness: 0,
-          communication_skills: 0,
-          domain_expertise: 0,
-          knowledge_displayed: 0,
-          people_management: 0,
-          technical_skills: 0,
+        category_averages: {
+          trainer_readiness: 0,
+          expertise_delivery: 0,
+          engagement_interaction: 0,
+          communication: 0,
+          technical_acumen: 0,
         },
       })
       continue
     }
 
     const totalRating = assessments.reduce((sum, a) => {
-      return (
-        sum +
-        (a.trainers_readiness +
-          a.communication_skills +
-          a.domain_expertise +
-          a.knowledge_displayed +
-          a.people_management +
-          a.technical_skills) /
-          6
-      )
+      return sum + calculateAssessmentAverage(a as any)
     }, 0)
 
     const average_rating = Number((totalRating / assessments.length).toFixed(2))
     const uniqueTrainers = new Set(assessments.map((a) => a.trainer_id)).size
 
-    // Parameter averages
-    const paramSums = {
-      trainers_readiness: 0,
-      communication_skills: 0,
-      domain_expertise: 0,
-      knowledge_displayed: 0,
-      people_management: 0,
-      technical_skills: 0,
+    // Calculate category averages
+    const categorySums: Record<string, { sum: number; count: number }> = {
+      trainer_readiness: { sum: 0, count: 0 },
+      expertise_delivery: { sum: 0, count: 0 },
+      engagement_interaction: { sum: 0, count: 0 },
+      communication: { sum: 0, count: 0 },
+      technical_acumen: { sum: 0, count: 0 },
     }
 
-    assessments.forEach((a) => {
-      paramSums.trainers_readiness += a.trainers_readiness
-      paramSums.communication_skills += a.communication_skills
-      paramSums.domain_expertise += a.domain_expertise
-      paramSums.knowledge_displayed += a.knowledge_displayed
-      paramSums.people_management += a.people_management
-      paramSums.technical_skills += a.technical_skills
+    assessments.forEach((a: any) => {
+      // Category 1: Trainer Initial Readiness (5 parameters)
+      const readinessParams = ['logs_in_early', 'video_always_on', 'minimal_disturbance', 'presentable_prompt', 'ready_with_tools']
+      readinessParams.forEach((param) => {
+        const val = a[param]
+        if (val && val > 0) {
+          categorySums.trainer_readiness.sum += val
+          categorySums.trainer_readiness.count++
+        }
+      })
+
+      // Category 2: Trainer Expertise & Delivery (5 parameters)
+      const expertiseParams = ['adequate_knowledge', 'simplifies_topics', 'encourages_participation', 'handles_questions', 'provides_context']
+      expertiseParams.forEach((param) => {
+        const val = a[param]
+        if (val && val > 0) {
+          categorySums.expertise_delivery.sum += val
+          categorySums.expertise_delivery.count++
+        }
+      })
+
+      // Category 3: Participant Engagement & Interaction (4 parameters)
+      const engagementParams = ['maintains_attention', 'uses_interactive_tools', 'assesses_learning', 'clear_speech']
+      engagementParams.forEach((param) => {
+        const val = a[param]
+        if (val && val > 0) {
+          categorySums.engagement_interaction.sum += val
+          categorySums.engagement_interaction.count++
+        }
+      })
+
+      // Category 4: Communication Skills (3 parameters)
+      const communicationParams = ['minimal_grammar_errors', 'professional_tone', 'manages_teams_well']
+      communicationParams.forEach((param) => {
+        const val = a[param]
+        if (val && val > 0) {
+          categorySums.communication.sum += val
+          categorySums.communication.count++
+        }
+      })
+
+      // Category 5: Technical Acumen (4 parameters)
+      const technicalParams = ['efficient_tool_switching', 'audio_video_clarity', 'session_recording', 'survey_assignment']
+      technicalParams.forEach((param) => {
+        const val = a[param]
+        if (val && val > 0) {
+          categorySums.technical_acumen.sum += val
+          categorySums.technical_acumen.count++
+        }
+      })
     })
 
     const count = assessments.length
@@ -373,13 +380,22 @@ export const fetchMonthlyTrends = async (months: number = 12): Promise<MonthlyTr
       average_rating,
       assessment_count: assessments.length,
       trainers_assessed: uniqueTrainers,
-      parameter_averages: {
-        trainers_readiness: Number((paramSums.trainers_readiness / count).toFixed(2)),
-        communication_skills: Number((paramSums.communication_skills / count).toFixed(2)),
-        domain_expertise: Number((paramSums.domain_expertise / count).toFixed(2)),
-        knowledge_displayed: Number((paramSums.knowledge_displayed / count).toFixed(2)),
-        people_management: Number((paramSums.people_management / count).toFixed(2)),
-        technical_skills: Number((paramSums.technical_skills / count).toFixed(2)),
+      category_averages: {
+        trainer_readiness: categorySums.trainer_readiness.count > 0
+          ? Number((categorySums.trainer_readiness.sum / categorySums.trainer_readiness.count).toFixed(2))
+          : 0,
+        expertise_delivery: categorySums.expertise_delivery.count > 0
+          ? Number((categorySums.expertise_delivery.sum / categorySums.expertise_delivery.count).toFixed(2))
+          : 0,
+        engagement_interaction: categorySums.engagement_interaction.count > 0
+          ? Number((categorySums.engagement_interaction.sum / categorySums.engagement_interaction.count).toFixed(2))
+          : 0,
+        communication: categorySums.communication.count > 0
+          ? Number((categorySums.communication.sum / categorySums.communication.count).toFixed(2))
+          : 0,
+        technical_acumen: categorySums.technical_acumen.count > 0
+          ? Number((categorySums.technical_acumen.sum / categorySums.technical_acumen.count).toFixed(2))
+          : 0,
       },
     })
   }
@@ -417,16 +433,7 @@ export const fetchQuarterlyData = async (): Promise<QuarterlyData[]> => {
       }
 
       const totalRating = assessments.reduce((sum, a) => {
-        return (
-          sum +
-          (a.trainers_readiness +
-            a.communication_skills +
-            a.domain_expertise +
-            a.knowledge_displayed +
-            a.people_management +
-            a.technical_skills) /
-            6
-        )
+        return sum + calculateAssessmentAverage(a as any)
       }, 0)
 
       quarters.push({
@@ -524,7 +531,7 @@ export const getAssessmentActivityHeatmap = async (): Promise<HeatmapData[]> => 
 export const fetchRecentActivity = async (limit: number = 20): Promise<RecentActivity[]> => {
   const { data, error } = await supabase
     .from('assessments')
-    .select('id, assessor_id, trainer_id, assessment_date, created_at, trainers_readiness, communication_skills, domain_expertise, knowledge_displayed, people_management, technical_skills')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -545,14 +552,7 @@ export const fetchRecentActivity = async (limit: number = 20): Promise<RecentAct
   if (error) throw error
 
   return (data || []).map((a: any) => {
-    const avg =
-      (a.trainers_readiness +
-        a.communication_skills +
-        a.domain_expertise +
-        a.knowledge_displayed +
-        a.people_management +
-        a.technical_skills) /
-      6
+    const avg = calculateAssessmentAverage(a)
 
     const assessor = assessors?.find((p: any) => p.id === a.assessor_id)
     const trainer = trainers?.find((p: any) => p.id === a.trainer_id)
@@ -593,7 +593,7 @@ export const getTopPerformers = async (
 
     const { data: assessments } = await supabase
       .from('assessments')
-      .select('trainer_id, assessment_date, trainers_readiness, communication_skills, domain_expertise, knowledge_displayed, people_management, technical_skills')
+      .select('*')
       .gte('assessment_date', startDate.toISOString().split('T')[0])
 
     // Fetch trainer profiles separately
@@ -610,14 +610,7 @@ export const getTopPerformers = async (
 
   assessments?.forEach((a: any) => {
     const trainerId = a.trainer_id
-    const avg =
-      (a.trainers_readiness +
-        a.communication_skills +
-        a.domain_expertise +
-        a.knowledge_displayed +
-        a.people_management +
-        a.technical_skills) /
-      6
+    const avg = calculateAssessmentAverage(a)
 
     if (!trainerMap.has(trainerId)) {
       const trainerProfile = trainerProfiles?.find((p: any) => p.id === trainerId)
