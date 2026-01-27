@@ -211,16 +211,53 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       // Check if we have a stored session
       const storedSession = localStorage.getItem('sb-auth-token')
-      if (!storedSession) return
+      if (!storedSession) {
+        // Even if no stored session, clear any other Supabase-related keys
+        const keysToRemove: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+            keysToRemove.push(key)
+          }
+        }
+        if (keysToRemove.length > 0) {
+          keysToRemove.forEach(key => localStorage.removeItem(key))
+          console.log('🧹 Cleared orphaned Supabase keys')
+        }
+        return
+      }
 
-      // Try to validate the session
-      const { data: { session }, error } = await supabase.auth.getSession()
+      // Try to validate the session with a timeout
+      const sessionPromise = supabase.auth.getSession()
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session check timeout')), 3000)
+      )
+      
+      let sessionResult
+      try {
+        sessionResult = await Promise.race([sessionPromise, timeoutPromise])
+      } catch (timeoutError) {
+        // If session check times out, assume stale and clear
+        console.log('🧹 Session check timeout, clearing stale data')
+        await supabase.auth.signOut().catch(() => {})
+        const keysToRemove: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+            keysToRemove.push(key)
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+        return
+      }
+      
+      const { data: { session }, error } = sessionResult as any
       
       // If there's an error or no valid session, clear storage
       if (error || !session) {
-        console.log('🧹 Clearing stale authentication data')
+        console.log('🧹 Clearing stale authentication data (error or no session)')
         // Clear Supabase auth storage
-        await supabase.auth.signOut()
+        await supabase.auth.signOut().catch(() => {})
         // Also clear localStorage items that might be stale
         const keysToRemove: string[] = []
         for (let i = 0; i < localStorage.length; i++) {
@@ -239,7 +276,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           // If token expires in less than 1 minute, it's effectively expired
           if (expiresIn < 60) {
             console.log('🧹 Token expired, clearing stale data')
-            await supabase.auth.signOut()
+            await supabase.auth.signOut().catch(() => {})
             const keysToRemove: string[] = []
             for (let i = 0; i < localStorage.length; i++) {
               const key = localStorage.key(i)
@@ -255,7 +292,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // If clearing fails, force clear localStorage
       console.warn('⚠️ Error clearing stale auth, forcing clear:', error)
       try {
-        await supabase.auth.signOut()
+        await supabase.auth.signOut().catch(() => {})
       } catch {
         // Ignore signOut errors
       }
@@ -268,6 +305,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
       keysToRemove.forEach(key => localStorage.removeItem(key))
+      console.log('✅ Force-cleared all Supabase auth data')
     }
   }
 
