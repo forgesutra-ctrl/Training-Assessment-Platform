@@ -26,10 +26,25 @@ export const isGamificationEnabled = (): boolean => {
  * Fetch all available badges
  */
 export const fetchAllBadges = async (): Promise<Badge[]> => {
-  const { data, error } = await supabase.from('badges').select('*').order('rarity', { ascending: false })
+  try {
+    const { data, error } = await supabase.from('badges').select('*').order('rarity', { ascending: false })
 
-  if (error) throw error
-  return data || []
+    if (error) {
+      // Table doesn't exist or RLS blocks access
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+        console.warn('Badges table not accessible:', error.message)
+        return []
+      }
+      throw error
+    }
+    return data || []
+  } catch (error: any) {
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      console.warn('Badges table not accessible:', error.message)
+      return []
+    }
+    throw error
+  }
 }
 
 /**
@@ -362,10 +377,25 @@ export const updateGoal = async (goalId: string, updates: Partial<Goal>): Promis
  * Fetch user streaks
  */
 export const fetchUserStreaks = async (userId: string): Promise<Streak[]> => {
-  const { data, error } = await supabase.from('streaks').select('*').eq('user_id', userId)
+  try {
+    const { data, error } = await supabase.from('streaks').select('*').eq('user_id', userId)
 
-  if (error) throw error
-  return data || []
+    if (error) {
+      // Table doesn't exist or RLS blocks access
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+        console.warn('Streaks table not accessible:', error.message)
+        return []
+      }
+      throw error
+    }
+    return data || []
+  } catch (error: any) {
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      console.warn('Streaks table not accessible:', error.message)
+      return []
+    }
+    throw error
+  }
 }
 
 /**
