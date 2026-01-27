@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { AssessmentWithDetails } from '@/types'
+import { calculateAssessmentAverage } from '@/utils/trainerStats'
 
 /**
  * Fetch eligible trainers for assessment (not direct reports)
@@ -51,22 +52,15 @@ export const fetchManagerAssessments = async (
 
   if (error) throw error
 
-  // Calculate average score and format data
+  // Calculate average score using 21-parameter system and format data
   const assessments: AssessmentWithDetails[] = (data || []).map((assessment: any) => {
-    const ratings = [
-      assessment.trainers_readiness,
-      assessment.communication_skills,
-      assessment.domain_expertise,
-      assessment.knowledge_displayed,
-      assessment.people_management,
-      assessment.technical_skills,
-    ]
-    const average = ratings.reduce((sum: number, val: number) => sum + val, 0) / ratings.length
+    // Use the new 21-parameter calculation
+    const average = calculateAssessmentAverage(assessment as AssessmentWithDetails)
 
     return {
       ...assessment,
-      trainer_name: assessment.trainer?.full_name || 'Unknown',
-      assessor_name: assessment.assessor?.full_name || 'Unknown',
+      trainer_name: assessment.trainer?.full_name || 'Unknown Trainer',
+      assessor_name: assessment.assessor?.full_name || 'Unknown Assessor',
       average_score: average,
     }
   })
@@ -98,22 +92,15 @@ export const fetchMonthlyStats = async (managerId: string) => {
   const uniqueTrainers = new Set(assessments.map((a: any) => a.trainer_id))
   const trainersAssessed = uniqueTrainers.size
 
-  // Calculate average rating
+  // Calculate average rating using 21-parameter system
   let totalRating = 0
   let ratingCount = 0
   assessments.forEach((assessment: any) => {
-    const ratings = [
-      assessment.trainers_readiness,
-      assessment.communication_skills,
-      assessment.domain_expertise,
-      assessment.knowledge_displayed,
-      assessment.people_management,
-      assessment.technical_skills,
-    ]
-    ratings.forEach((rating) => {
-      totalRating += rating
+    const avg = calculateAssessmentAverage(assessment as AssessmentWithDetails)
+    if (avg > 0) {
+      totalRating += avg
       ratingCount++
-    })
+    }
   })
 
   const averageRating = ratingCount > 0 ? totalRating / ratingCount : 0
@@ -144,20 +131,13 @@ export const fetchAssessmentDetails = async (
   if (error) throw error
   if (!data) return null
 
-  const ratings = [
-    data.trainers_readiness,
-    data.communication_skills,
-    data.domain_expertise,
-    data.knowledge_displayed,
-    data.people_management,
-    data.technical_skills,
-  ]
-  const average = ratings.reduce((sum, val) => sum + val, 0) / ratings.length
+  // Use 21-parameter calculation
+  const average = calculateAssessmentAverage(data as AssessmentWithDetails)
 
   return {
     ...data,
-    trainer_name: data.trainer?.full_name || 'Unknown',
-    assessor_name: data.assessor?.full_name || 'Unknown',
+    trainer_name: data.trainer?.full_name || 'Unknown Trainer',
+    assessor_name: data.assessor?.full_name || 'Unknown Assessor',
     average_score: average,
   }
 }

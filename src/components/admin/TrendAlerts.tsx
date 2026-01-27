@@ -13,7 +13,7 @@ const TrendAlerts = () => {
 
   useEffect(() => {
     loadAlerts()
-  }, [])
+  }, []) // Load on mount - component will remount when tab switches due to key prop
 
   const loadAlerts = async () => {
     try {

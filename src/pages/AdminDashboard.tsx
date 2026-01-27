@@ -348,21 +348,21 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            {/* Tab Content */}
-            <div className="transition-all duration-300">
-              {activeTab === 'overview' && <AdminSmartDashboard />}
-              {activeTab === 'trainer-performance' && <TrainerPerformance />}
-              {activeTab === 'manager-activity' && <ManagerActivity />}
-              {activeTab === 'time-analysis' && <TimeAnalysis />}
-              {activeTab === 'user-management' && <UserManagement />}
-              {activeTab === 'predictive-analytics' && <PredictiveAnalytics />}
-              {activeTab === 'trend-alerts' && <TrendAlerts />}
-              {activeTab === 'data-studio' && <DataStudio />}
-              {activeTab === 'comparative-analysis' && <ComparativeAnalysis />}
-              {activeTab === 'correlation-analysis' && <CorrelationAnalysis />}
-              {activeTab === 'scenario-modeling' && <ScenarioModeling />}
-              {activeTab === 'report-templates' && <ReportTemplates />}
-              {activeTab === 'audit-log' && <AuditLog />}
+            {/* Tab Content - Use key prop to force remount and ensure fresh data */}
+            <div className="transition-all duration-300" key={activeTab}>
+              {activeTab === 'overview' && <AdminSmartDashboard key="overview" />}
+              {activeTab === 'trainer-performance' && <TrainerPerformance key="trainer-performance" />}
+              {activeTab === 'manager-activity' && <ManagerActivity key="manager-activity" />}
+              {activeTab === 'time-analysis' && <TimeAnalysis key="time-analysis" />}
+              {activeTab === 'user-management' && <UserManagement key="user-management" />}
+              {activeTab === 'predictive-analytics' && <PredictiveAnalytics key="predictive-analytics" />}
+              {activeTab === 'trend-alerts' && <TrendAlerts key="trend-alerts" />}
+              {activeTab === 'data-studio' && <DataStudio key="data-studio" />}
+              {activeTab === 'comparative-analysis' && <ComparativeAnalysis key="comparative-analysis" />}
+              {activeTab === 'correlation-analysis' && <CorrelationAnalysis key="correlation-analysis" />}
+              {activeTab === 'scenario-modeling' && <ScenarioModeling key="scenario-modeling" />}
+              {activeTab === 'report-templates' && <ReportTemplates key="report-templates" />}
+              {activeTab === 'audit-log' && <AuditLog key="audit-log" />}
             </div>
           </div>
         </main>
