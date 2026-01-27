@@ -39,22 +39,42 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const fetchProfile = async (userId: string, autoCreate: boolean = true): Promise<Profile | null> => {
     try {
       // Ensure we have a valid session before querying
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('❌ Error getting session:', sessionError)
+        return null
+      }
+      
       if (!currentSession) {
         console.warn('⚠️ No active session when fetching profile')
+        console.warn('   This means the user is not authenticated')
         return null
+      }
+      
+      if (currentSession.user.id !== userId) {
+        console.warn('⚠️ Session user ID mismatch:', {
+          requestedUserId: userId,
+          sessionUserId: currentSession.user.id,
+        })
       }
       
       console.log('🔍 Fetching profile with session:', {
         userId: userId,
         sessionUserId: currentSession.user.id,
         match: userId === currentSession.user.id,
+        hasAccessToken: !!currentSession.access_token,
+        tokenLength: currentSession.access_token?.length || 0,
       })
+      
+      // Use the session's user ID to ensure RLS policy works
+      // The RLS policy checks auth.uid() = id, so we must query with the session user's ID
+      const profileUserId = currentSession.user.id
       
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', profileUserId)  // Use session user ID, not the passed userId
         .single()
 
       if (error) {
@@ -120,16 +140,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           message: error.message,
           details: error.details,
           hint: error.hint,
-          userId: userId,
+          requestedUserId: userId,
+          sessionUserId: currentSession?.user?.id,
         })
         
         // Provide helpful hints based on error code
         if (error.code === 'PGRST116') {
-          console.error('💡 Profile not found. This user may not have a profile record in the database.')
-          console.error('   Run the seed script or create a profile for this user.')
+          console.error('💡 Profile not found (PGRST116). This means:')
+          console.error('   1. Profile record does not exist in database, OR')
+          console.error('   2. RLS policy is blocking access (auth.uid() does not match profile id)')
+          console.error('   Check: Does profile exist? Run diagnostic query.')
+          console.error('   Check: Does session user ID match profile ID?')
         } else if (error.code === '42501' || error.message?.includes('permission denied')) {
-          console.error('💡 Permission denied. Check RLS policies on the profiles table.')
-          console.error('   Make sure the user can read their own profile.')
+          console.error('💡 Permission denied (42501). RLS policy is blocking access.')
+          console.error('   This means auth.uid() is not matching the profile id.')
+          console.error('   Session user ID:', currentSession?.user?.id)
+          console.error('   Requested profile ID:', userId)
+          console.error('   Check: Is the session token being sent with the request?')
         }
         
         return null
