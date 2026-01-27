@@ -206,25 +206,96 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }
 
-  // Initialize auth state - optimized for fast initial load
+  // Clear stale/invalid authentication data
+  const clearStaleAuth = async () => {
+    try {
+      // Check if we have a stored session
+      const storedSession = localStorage.getItem('sb-auth-token')
+      if (!storedSession) return
+
+      // Try to validate the session
+      const { data: { session }, error } = await supabase.auth.getSession()
+      
+      // If there's an error or no valid session, clear storage
+      if (error || !session) {
+        console.log('🧹 Clearing stale authentication data')
+        // Clear Supabase auth storage
+        await supabase.auth.signOut()
+        // Also clear localStorage items that might be stale
+        const keysToRemove: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+            keysToRemove.push(key)
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+        console.log('✅ Cleared stale auth data')
+      } else if (session) {
+        // Check if token is expired
+        const expiresAt = session.expires_at
+        if (expiresAt) {
+          const expiresIn = expiresAt - Math.floor(Date.now() / 1000)
+          // If token expires in less than 1 minute, it's effectively expired
+          if (expiresIn < 60) {
+            console.log('🧹 Token expired, clearing stale data')
+            await supabase.auth.signOut()
+            const keysToRemove: string[] = []
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i)
+              if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+                keysToRemove.push(key)
+              }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key))
+          }
+        }
+      }
+    } catch (error: any) {
+      // If clearing fails, force clear localStorage
+      console.warn('⚠️ Error clearing stale auth, forcing clear:', error)
+      try {
+        await supabase.auth.signOut()
+      } catch {
+        // Ignore signOut errors
+      }
+      // Clear all Supabase-related localStorage items
+      const keysToRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+          keysToRemove.push(key)
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key))
+    }
+  }
+
+  // Initialize auth state - optimized for fast initial load with stale token detection
   useEffect(() => {
     let isMounted = true
     let timeoutId: NodeJS.Timeout | null = null
     
-    // Fast timeout - show login form quickly if no session
-    timeoutId = setTimeout(() => {
-      if (isMounted) {
-        // If we still don't have a session after 2 seconds, stop loading
-        // This allows the login form to show quickly
-        if (!session) {
-          console.log('⏱️ Fast timeout - no session found, showing login form')
-          setLoading(false)
-        }
-      }
-    }, 2000) // 2 second timeout for initial load
+    // First, check and clear any stale authentication data
+    clearStaleAuth()
+      .then(() => {
+        if (!isMounted) return
+        
+        // Fast timeout - show login form quickly if no session
+        timeoutId = setTimeout(() => {
+          if (isMounted) {
+            // If we still don't have a session after 2 seconds, stop loading
+            // This allows the login form to show quickly
+            if (!session) {
+              console.log('⏱️ Fast timeout - no session found, showing login form')
+              setLoading(false)
+            }
+          }
+        }, 2000) // 2 second timeout for initial load
 
-    // Get initial session with error handling for refresh token issues
-    supabase.auth.getSession()
+        // Get initial session with error handling for refresh token issues
+        return supabase.auth.getSession()
+      })
       .then(({ data: { session }, error }) => {
         if (!isMounted) return
         
@@ -234,13 +305,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           if (error.name === 'AbortError' || error.message?.includes('aborted')) {
             return
           }
-          // Ignore refresh token errors - they're common and don't block login
-          if (error.message?.includes('Refresh Token') || error.message?.includes('refresh_token')) {
-            console.log('ℹ️ Refresh token error (expected for new users):', error.message)
-            if (isMounted) {
-              setLoading(false)
-              if (timeoutId) clearTimeout(timeoutId)
-            }
+          // If refresh token is invalid, clear storage and show login
+          if (error.message?.includes('Refresh Token') || 
+              error.message?.includes('refresh_token') ||
+              error.message?.includes('Invalid Refresh Token') ||
+              error.message?.includes('Token Not Found')) {
+            console.log('ℹ️ Invalid refresh token detected, clearing stale data')
+            // Clear stale auth data
+            clearStaleAuth().then(() => {
+              if (isMounted) {
+                setLoading(false)
+                if (timeoutId) clearTimeout(timeoutId)
+              }
+            })
             return
           }
           console.error('Error getting session:', error)
@@ -288,13 +365,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (error.name === 'AbortError' || error.message?.includes('aborted')) {
           return
         }
-        // Ignore refresh token errors
-        if (error.message?.includes('Refresh Token') || error.message?.includes('refresh_token')) {
-          console.log('ℹ️ Refresh token error during init (expected):', error.message)
-          if (isMounted) {
-            setLoading(false)
-            if (timeoutId) clearTimeout(timeoutId)
-          }
+        // If refresh token errors, clear storage
+        if (error.message?.includes('Refresh Token') || 
+            error.message?.includes('refresh_token') ||
+            error.message?.includes('Invalid Refresh Token')) {
+          console.log('ℹ️ Refresh token error during init, clearing stale data')
+          clearStaleAuth().then(() => {
+            if (isMounted) {
+              setLoading(false)
+              if (timeoutId) clearTimeout(timeoutId)
+            }
+          })
           return
         }
         console.error('Error in getSession:', error)
@@ -317,6 +398,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
         console.log('🔄 Auth state changed:', event, session?.user?.email)
+        
+        // If we get a TOKEN_REFRESHED event with no session, clear stale data
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.log('🧹 Token refresh failed, clearing stale data')
+          await clearStaleAuth()
+          setLoading(false)
+          return
+        }
+        
+        // If we get an error event, clear stale data
+        if (event === 'SIGNED_OUT' && !session) {
+          // Clear any remaining stale data
+          await clearStaleAuth()
+        }
+        
         setSession(session)
         setUser(session?.user ?? null)
 
@@ -350,6 +446,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             if (error.name === 'AbortError' || error.message?.includes('aborted')) {
               return
             }
+            // If it's a token error, clear stale data
+            if (error.message?.includes('Refresh Token') || 
+                error.message?.includes('Invalid Refresh Token') ||
+                error.message?.includes('Token Not Found')) {
+              console.log('🧹 Token error in auth state change, clearing stale data')
+              await clearStaleAuth()
+            }
             console.error('❌ Error fetching profile in auth state change:', error)
             console.error('   User ID:', session?.user?.id)
             console.error('   Email:', session?.user?.email)
@@ -377,6 +480,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Ignore AbortError - it's expected when component unmounts
         if (error.name === 'AbortError' || error.message?.includes('aborted')) {
           return
+        }
+        // If it's a token error, clear stale data
+        if (error.message?.includes('Refresh Token') || 
+            error.message?.includes('Invalid Refresh Token')) {
+          console.log('🧹 Token error, clearing stale data')
+          clearStaleAuth()
         }
         console.error('Error in auth state change:', error)
         setLoading(false)
