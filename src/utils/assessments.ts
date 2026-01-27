@@ -43,24 +43,31 @@ export const fetchManagerAssessments = async (
     .from('assessments')
     .select(`
       *,
-      trainer:profiles!trainer_id(full_name),
-      assessor:profiles!assessor_id(full_name)
+      trainer:profiles!trainer_id(id, full_name, email),
+      assessor:profiles!assessor_id(id, full_name, email)
     `)
     .eq('assessor_id', managerId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (error) throw error
+  if (error) {
+    console.error('Error fetching manager assessments:', error)
+    throw error
+  }
 
   // Calculate average score using 21-parameter system and format data
   const assessments: AssessmentWithDetails[] = (data || []).map((assessment: any) => {
     // Use the new 21-parameter calculation
     const average = calculateAssessmentAverage(assessment as AssessmentWithDetails)
 
+    // Extract trainer and assessor names with better error handling
+    const trainer = Array.isArray(assessment.trainer) ? assessment.trainer[0] : assessment.trainer
+    const assessor = Array.isArray(assessment.assessor) ? assessment.assessor[0] : assessment.assessor
+
     return {
       ...assessment,
-      trainer_name: assessment.trainer?.full_name || 'Unknown Trainer',
-      assessor_name: assessment.assessor?.full_name || 'Unknown Assessor',
+      trainer_name: trainer?.full_name || trainer?.email || 'Unknown Trainer',
+      assessor_name: assessor?.full_name || assessor?.email || 'Unknown Assessor',
       average_score: average,
     }
   })

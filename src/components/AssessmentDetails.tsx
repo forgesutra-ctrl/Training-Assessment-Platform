@@ -1,5 +1,7 @@
-import { X, Calendar, User, Star } from 'lucide-react'
-import { AssessmentWithDetails } from '@/types'
+import { X, Calendar, User, Star, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState } from 'react'
+import { AssessmentWithDetails, ASSESSMENT_STRUCTURE } from '@/types'
+import { calculateCategoryAverages, getScoreColor } from '@/utils/trainerStats'
 
 interface AssessmentDetailsProps {
   assessment: AssessmentWithDetails
@@ -7,38 +9,23 @@ interface AssessmentDetailsProps {
 }
 
 const AssessmentDetails = ({ assessment, onClose }: AssessmentDetailsProps) => {
-  const ratingSections = [
-    {
-      label: "Trainer's Readiness",
-      value: assessment.trainers_readiness,
-      comments: assessment.trainers_readiness_comments,
-    },
-    {
-      label: 'Communication Skills',
-      value: assessment.communication_skills,
-      comments: assessment.communication_skills_comments,
-    },
-    {
-      label: 'Domain Expertise',
-      value: assessment.domain_expertise,
-      comments: assessment.domain_expertise_comments,
-    },
-    {
-      label: 'Knowledge Displayed',
-      value: assessment.knowledge_displayed,
-      comments: assessment.knowledge_displayed_comments,
-    },
-    {
-      label: 'Real-time People Management',
-      value: assessment.people_management,
-      comments: assessment.people_management_comments,
-    },
-    {
-      label: 'Technical Skills',
-      value: assessment.technical_skills,
-      comments: assessment.technical_skills_comments,
-    },
-  ]
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set(ASSESSMENT_STRUCTURE.categories.map((c) => c.id))
+  )
+
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategories((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId)
+      } else {
+        newSet.add(categoryId)
+      }
+      return newSet
+    })
+  }
+
+  const categoryAverages = calculateCategoryAverages(assessment)
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -131,41 +118,96 @@ const AssessmentDetails = ({ assessment, onClose }: AssessmentDetailsProps) => {
               </div>
             </div>
 
-            {/* Rating Sections */}
+            {/* Rating Sections - 21 Parameters by Category */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Detailed Ratings</h3>
-              {ratingSections.map((section, index) => (
-                <div key={index} className="card">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-gray-900">{section.label}</h4>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold text-primary-600">
-                        {section.value}
-                      </span>
-                      <span className="text-gray-500">/5</span>
-                      <div className="flex items-center gap-1 ml-2">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={`w-5 h-5 ${
-                              star <= section.value
-                                ? 'fill-yellow-400 text-yellow-400'
-                                : 'fill-gray-200 text-gray-200'
-                            }`}
-                          />
-                        ))}
+              <h3 className="text-lg font-semibold text-gray-900">Detailed Ratings (21 Parameters)</h3>
+              {ASSESSMENT_STRUCTURE.categories.map((category) => {
+                const isExpanded = expandedCategories.has(category.id)
+                const avg = categoryAverages.find((ca) => ca.categoryId === category.id)?.average || 0
+                const categoryParams = category.parameters.filter(
+                  (param) => (assessment as any)[param.id] != null && (assessment as any)[param.id] > 0
+                )
+
+                return (
+                  <div key={category.id} className="card border-l-4 border-l-primary-500">
+                    <button
+                      onClick={() => toggleCategory(category.id)}
+                      className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{category.icon}</span>
+                        <div className="text-left">
+                          <h4 className="font-semibold text-gray-900">{category.name}</h4>
+                          <p className="text-sm text-gray-600">
+                            {categoryParams.length} of {category.parameters.length} parameters assessed
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                      <div className="flex items-center gap-4">
+                        {avg > 0 && (
+                          <div className="text-right">
+                            <div className={`text-2xl font-bold ${getScoreColor(avg)}`}>
+                              {avg.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-gray-500">Category Avg</div>
+                          </div>
+                        )}
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-4 space-y-4 border-t border-gray-200 pt-4 mt-4">
+                        {category.parameters.map((param) => {
+                          const rating = (assessment as any)[param.id] as number | null
+                          const comments = (assessment as any)[`${param.id}_comments`] as string | null
+
+                          if (!rating || rating === 0) return null
+
+                          return (
+                            <div key={param.id} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">{param.label}</h4>
+                                  <p className="text-sm text-gray-600">{param.description}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <Star
+                                        key={star}
+                                        className={`w-5 h-5 ${
+                                          star <= rating
+                                            ? 'fill-yellow-400 text-yellow-400'
+                                            : 'fill-gray-200 text-gray-200'
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className={`text-xl font-bold ${getScoreColor(rating)}`}>
+                                    {rating}/5
+                                  </span>
+                                </div>
+                              </div>
+                              {comments && (
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                    {comments}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                  {section.comments && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                        {section.comments}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Overall Comments */}
