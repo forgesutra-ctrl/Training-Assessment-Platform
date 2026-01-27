@@ -55,64 +55,90 @@ const ManagerSmartDashboard = () => {
 
   const loadSuggestedTrainers = async () => {
     try {
-      const { data: eligibleTrainers } = await supabase
+      // Fetch trainers first
+      const { data: eligibleTrainers, error: trainersError } = await supabase
         .from('profiles')
-        .select(`
-          id,
-          full_name,
-          team_id,
-          teams(team_name)
-        `)
+        .select('id, full_name, team_id')
         .eq('role', 'trainer')
         .neq('reporting_manager_id', user!.id)
 
-      if (eligibleTrainers) {
-        // Get last assessment dates
-        const { data: assessments } = await supabase
-          .from('assessments')
-          .select('trainer_id, assessment_date')
-          .eq('assessor_id', user!.id)
-          .order('assessment_date', { ascending: false })
+      if (trainersError) {
+        console.error('Error fetching eligible trainers:', trainersError)
+        return
+      }
 
-        const lastAssessmentMap = new Map<string, { date: string; days: number }>()
-        assessments?.forEach((a) => {
-          const existing = lastAssessmentMap.get(a.trainer_id)
-          const assessmentDate = new Date(a.assessment_date)
-          const daysSince = Math.floor(
-            (Date.now() - assessmentDate.getTime()) / (1000 * 60 * 60 * 24)
-          )
-          if (!existing || assessmentDate > new Date(existing.date)) {
-            lastAssessmentMap.set(a.trainer_id, {
-              date: a.assessment_date,
-              days: daysSince,
-            })
+      if (!eligibleTrainers || eligibleTrainers.length === 0) {
+        setSuggestedTrainers([])
+        return
+      }
+
+      // Fetch teams separately
+      const teamIds = [...new Set(eligibleTrainers.map((t: any) => t.team_id).filter(Boolean))]
+      let teamMap = new Map<string, any>()
+      
+      if (teamIds.length > 0) {
+        const { data: teams, error: teamsError } = await supabase
+          .from('teams')
+          .select('id, team_name')
+          .in('id', teamIds)
+        
+        if (!teamsError && teams) {
+          teams.forEach((team: any) => {
+            teamMap.set(team.id, team)
+          })
+        }
+      }
+
+      // Get last assessment dates
+      const { data: assessments, error: assessmentsError } = await supabase
+        .from('assessments')
+        .select('trainer_id, assessment_date')
+        .eq('assessor_id', user!.id)
+        .order('assessment_date', { ascending: false })
+
+      if (assessmentsError) {
+        console.error('Error fetching assessments:', assessmentsError)
+      }
+
+      const lastAssessmentMap = new Map<string, { date: string; days: number }>()
+      assessments?.forEach((a: any) => {
+        const existing = lastAssessmentMap.get(a.trainer_id)
+        const assessmentDate = new Date(a.assessment_date)
+        const daysSince = Math.floor(
+          (Date.now() - assessmentDate.getTime()) / (1000 * 60 * 60 * 24)
+        )
+        if (!existing || assessmentDate > new Date(existing.date)) {
+          lastAssessmentMap.set(a.trainer_id, {
+            date: a.assessment_date,
+            days: daysSince,
+          })
+        }
+      })
+
+      const suggested = eligibleTrainers
+        .map((trainer: any) => {
+          const team = trainer.team_id ? teamMap.get(trainer.team_id) : null
+          const lastAssessment = lastAssessmentMap.get(trainer.id)
+          return {
+            id: trainer.id,
+            name: trainer.full_name,
+            team: team?.team_name || 'No Team',
+            daysSinceLastAssessment: lastAssessment?.days ?? null,
+            lastAssessmentDate: lastAssessment?.date ?? null,
           }
         })
+        .sort((a, b) => {
+          // Prioritize trainers not assessed or assessed long ago
+          if (a.daysSinceLastAssessment === null) return -1
+          if (b.daysSinceLastAssessment === null) return 1
+          return b.daysSinceLastAssessment - a.daysSinceLastAssessment
+        })
+        .slice(0, 5)
 
-        const suggested = eligibleTrainers
-          .map((trainer) => {
-            const team = Array.isArray(trainer.teams) ? trainer.teams[0] : trainer.teams
-            const lastAssessment = lastAssessmentMap.get(trainer.id)
-            return {
-              id: trainer.id,
-              name: trainer.full_name,
-              team: team?.team_name || 'No Team',
-              daysSinceLastAssessment: lastAssessment?.days ?? null,
-              lastAssessmentDate: lastAssessment?.date ?? null,
-            }
-          })
-          .sort((a, b) => {
-            // Prioritize trainers not assessed or assessed long ago
-            if (a.daysSinceLastAssessment === null) return -1
-            if (b.daysSinceLastAssessment === null) return 1
-            return b.daysSinceLastAssessment - a.daysSinceLastAssessment
-          })
-          .slice(0, 5)
-
-        setSuggestedTrainers(suggested)
-      }
+      setSuggestedTrainers(suggested)
     } catch (error) {
       console.error('Error loading suggested trainers:', error)
+      setSuggestedTrainers([])
     }
   }
 
@@ -120,21 +146,55 @@ const ManagerSmartDashboard = () => {
     // This would integrate with a calendar system
     // For now, show recent assessments
     try {
-      const { data } = await supabase
+      // Fetch assessments first
+      const { data: assessments, error: assessmentsError } = await supabase
         .from('assessments')
-        .select(`
-          id,
-          assessment_date,
-          trainer_id,
-          trainer:profiles!trainer_id(full_name)
-        `)
+        .select('id, assessment_date, trainer_id')
         .eq('assessor_id', user!.id)
         .order('assessment_date', { ascending: false })
         .limit(5)
 
-      setUpcomingAssessments(data || [])
+      if (assessmentsError) {
+        console.error('Error fetching assessments:', assessmentsError)
+        setUpcomingAssessments([])
+        return
+      }
+
+      if (!assessments || assessments.length === 0) {
+        setUpcomingAssessments([])
+        return
+      }
+
+      // Fetch trainer profiles separately
+      const trainerIds = [...new Set(assessments.map((a: any) => a.trainer_id).filter(Boolean))]
+      let trainerMap = new Map<string, any>()
+      
+      if (trainerIds.length > 0) {
+        const { data: trainers, error: trainersError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', trainerIds)
+        
+        if (!trainersError && trainers) {
+          trainers.forEach((trainer: any) => {
+            trainerMap.set(trainer.id, trainer)
+          })
+        }
+      }
+
+      // Combine assessments with trainer data
+      const assessmentsWithTrainers = assessments.map((assessment: any) => {
+        const trainer = trainerMap.get(assessment.trainer_id)
+        return {
+          ...assessment,
+          trainer: trainer ? { full_name: trainer.full_name } : null,
+        }
+      })
+
+      setUpcomingAssessments(assessmentsWithTrainers)
     } catch (error) {
       console.error('Error loading upcoming assessments:', error)
+      setUpcomingAssessments([])
     }
   }
 
@@ -211,10 +271,8 @@ const ManagerSmartDashboard = () => {
             {upcomingAssessments.length === 0 ? (
               <p className="text-sm text-gray-500">No recent assessments to display.</p>
             ) : (
-              upcomingAssessments.map((assessment) => {
-                const trainer = Array.isArray(assessment.trainer)
-                  ? assessment.trainer[0]
-                  : assessment.trainer
+              upcomingAssessments.map((assessment: any) => {
+                const trainer = assessment.trainer
                 return (
                   <div
                     key={assessment.id}

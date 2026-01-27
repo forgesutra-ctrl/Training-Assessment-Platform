@@ -6,23 +6,40 @@ import { calculateAssessmentAverage } from '@/utils/trainerStats'
  * Fetch eligible trainers for assessment (not direct reports)
  */
 export const fetchEligibleTrainers = async (managerId: string) => {
-  const { data, error } = await supabase
+  // Fetch trainers first
+  const { data: trainers, error: trainersError } = await supabase
     .from('profiles')
-    .select(`
-      id,
-      full_name,
-      team_id,
-      teams(team_name)
-    `)
+    .select('id, full_name, team_id')
     .eq('role', 'trainer')
     .neq('reporting_manager_id', managerId)
     .order('full_name')
 
-  if (error) throw error
+  if (trainersError) throw trainersError
+  
+  if (!trainers || trainers.length === 0) {
+    return []
+  }
+
+  // Fetch teams separately
+  const teamIds = [...new Set(trainers.map((t: any) => t.team_id).filter(Boolean))]
+  let teamMap = new Map<string, any>()
+  
+  if (teamIds.length > 0) {
+    const { data: teams, error: teamsError } = await supabase
+      .from('teams')
+      .select('id, team_name')
+      .in('id', teamIds)
+    
+    if (!teamsError && teams) {
+      teams.forEach((team: any) => {
+        teamMap.set(team.id, team)
+      })
+    }
+  }
   
   // Format the data
-  const formatted = (data || []).map((trainer: any) => {
-    const team = Array.isArray(trainer.teams) ? trainer.teams[0] : trainer.teams
+  const formatted = trainers.map((trainer: any) => {
+    const team = trainer.team_id ? teamMap.get(trainer.team_id) : null
     return {
       ...trainer,
       team_name: team?.team_name || 'No Team',
@@ -60,17 +77,35 @@ export const fetchManagerAssessments = async (
   const trainerIds = [...new Set(assessmentsData.map((a: any) => a.trainer_id).filter(Boolean))]
   const assessorIds = [...new Set(assessmentsData.map((a: any) => a.assessor_id).filter(Boolean))]
 
-  // Fetch trainer profiles
-  const { data: trainerProfiles } = await supabase
-    .from('profiles')
-    .select('id, full_name, email')
-    .in('id', trainerIds)
+  // Fetch trainer profiles (only if we have trainer IDs)
+  let trainerProfiles: any[] = []
+  if (trainerIds.length > 0) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', trainerIds)
+    
+    if (error) {
+      console.error('Error fetching trainer profiles:', error)
+    } else {
+      trainerProfiles = data || []
+    }
+  }
 
-  // Fetch assessor profiles
-  const { data: assessorProfiles } = await supabase
-    .from('profiles')
-    .select('id, full_name, email')
-    .in('id', assessorIds)
+  // Fetch assessor profiles (only if we have assessor IDs)
+  let assessorProfiles: any[] = []
+  if (assessorIds.length > 0) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', assessorIds)
+    
+    if (error) {
+      console.error('Error fetching assessor profiles:', error)
+    } else {
+      assessorProfiles = data || []
+    }
+  }
 
   // Create lookup maps
   const trainerMap = new Map((trainerProfiles || []).map((p: any) => [p.id, p]))
