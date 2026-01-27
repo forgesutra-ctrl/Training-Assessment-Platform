@@ -106,31 +106,58 @@ const AssessmentForm = () => {
       }
 
       try {
-        const { data, error } = await supabase
+        // Fetch trainers first
+        const { data: trainersData, error: trainersError } = await supabase
           .from('profiles')
-          .select(`
-            id,
-            full_name,
-            team_id,
-            teams!profiles_team_id_fkey(name)
-          `)
+          .select('id, full_name, team_id')
           .eq('role', 'trainer')
           .neq('reporting_manager_id', user.id)
           .order('full_name')
 
-        if (error) throw error
+        if (trainersError) {
+          console.error('Error fetching trainers:', trainersError)
+          throw trainersError
+        }
 
+        if (!trainersData || trainersData.length === 0) {
+          setTrainers([])
+          setLoading(false)
+          return
+        }
+
+        // Fetch teams separately
+        const teamIds = [...new Set(trainersData.map((t: any) => t.team_id).filter(Boolean))]
+        let teamMap = new Map<string, any>()
+        
+        if (teamIds.length > 0) {
+          const { data: teams, error: teamsError } = await supabase
+            .from('teams')
+            .select('id, team_name')
+            .in('id', teamIds)
+          
+          if (!teamsError && teams) {
+            teams.forEach((team: any) => {
+              teamMap.set(team.id, team)
+            })
+          }
+        }
+
+        // Combine trainers with team names
         setTrainers(
-          (data || []).map((t: any) => ({
-            id: t.id,
-            full_name: t.full_name,
-            team_id: t.team_id,
-            team_name: t.teams?.name || null,
-          }))
+          trainersData.map((t: any) => {
+            const team = t.team_id ? teamMap.get(t.team_id) : null
+            return {
+              id: t.id,
+              full_name: t.full_name,
+              team_id: t.team_id,
+              team_name: team?.team_name || null,
+            }
+          })
         )
       } catch (error: any) {
         console.error('Error fetching trainers:', error)
         toast.error('Failed to load trainers')
+        setTrainers([])
       } finally {
         setLoading(false)
       }

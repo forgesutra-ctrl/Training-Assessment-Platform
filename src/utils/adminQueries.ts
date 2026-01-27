@@ -536,26 +536,45 @@ export const fetchRecentActivity = async (limit: number = 20): Promise<RecentAct
     .limit(limit)
 
   // Fetch assessor and trainer names
-  const assessorIds = [...new Set(data?.map((a: any) => a.assessor_id) || [])]
-  const trainerIds = [...new Set(data?.map((a: any) => a.trainer_id) || [])]
+  const assessorIds = [...new Set(data?.map((a: any) => a.assessor_id).filter(Boolean) || [])]
+  const trainerIds = [...new Set(data?.map((a: any) => a.trainer_id).filter(Boolean) || [])]
   
-  const { data: assessors } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .in('id', assessorIds)
+  let assessorMap = new Map<string, any>()
+  let trainerMap = new Map<string, any>()
+
+  if (assessorIds.length > 0) {
+    const { data: assessors, error: assessorsError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', assessorIds)
+    
+    if (!assessorsError && assessors) {
+      assessors.forEach((assessor: any) => {
+        assessorMap.set(assessor.id, assessor)
+      })
+    }
+  }
   
-  const { data: trainers } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .in('id', trainerIds)
+  if (trainerIds.length > 0) {
+    const { data: trainers, error: trainersError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', trainerIds)
+    
+    if (!trainersError && trainers) {
+      trainers.forEach((trainer: any) => {
+        trainerMap.set(trainer.id, trainer)
+      })
+    }
+  }
 
   if (error) throw error
 
   return (data || []).map((a: any) => {
     const avg = calculateAssessmentAverage(a)
 
-    const assessor = assessors?.find((p: any) => p.id === a.assessor_id)
-    const trainer = trainers?.find((p: any) => p.id === a.trainer_id)
+    const assessor = assessorMap.get(a.assessor_id)
+    const trainer = trainerMap.get(a.trainer_id)
 
     return {
       id: a.id,
