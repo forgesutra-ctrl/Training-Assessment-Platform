@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthContext } from '@/contexts/AuthContext'
 import LoadingSpinner from './LoadingSpinner'
@@ -11,18 +12,37 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { user, profile, loading } = useAuthContext()
   const location = useLocation()
 
-  // Show loading spinner while checking authentication
+  // Show loading spinner while checking authentication (but with timeout)
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
+    // Don't wait forever - show loading for max 3 seconds
+    const [showLoading, setShowLoading] = useState(true)
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        setShowLoading(false)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }, [])
+    
+    if (showLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <LoadingSpinner size="lg" />
+        </div>
+      )
+    }
   }
 
-  // If not authenticated, redirect to login
-  if (!user || !profile) {
+  // If not authenticated (no user), redirect to login
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  // If user exists but no profile yet, allow access (profile will load on dashboard)
+  // This prevents redirect loops when navigating immediately after login
+  if (!profile) {
+    // Allow access - profile will be fetched on the dashboard page
+    // This is better than redirecting back to login which creates a loop
+    return <>{children}</>
   }
 
   // If role-based access is required, check if user has allowed role

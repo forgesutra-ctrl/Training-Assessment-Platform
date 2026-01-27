@@ -65,11 +65,11 @@ const Login = () => {
       }
       const redirectTo = roleRoutes[defaultRole] || '/admin/dashboard'
       
-      // Navigate immediately - don't wait
-      // Use window.location for more reliable navigation in production
+      // Navigate immediately using React Router (more reliable than window.location)
+      // Small delay to ensure auth state is set
       setTimeout(() => {
-        window.location.href = redirectTo
-      }, 300)
+        navigate(redirectTo, { replace: true })
+      }, 200)
     } else if (result?.error) {
       setError(result.error)
       setLoginSuccess(false)
