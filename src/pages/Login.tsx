@@ -19,8 +19,17 @@ const Login = () => {
 
   // Redirect if already logged in or after successful login
   useEffect(() => {
+    console.log('🔍 Login navigation check:', {
+      loading,
+      hasUser: !!user,
+      hasProfile: !!profile,
+      loginSuccess,
+      userEmail: user?.email,
+      profileRole: profile?.role,
+    })
+
     // If we have user and profile, navigate immediately
-    if (!loading && user && profile) {
+    if (user && profile) {
       const roleRoutes: Record<string, string> = {
         admin: '/admin/dashboard',
         manager: '/manager/dashboard',
@@ -28,33 +37,47 @@ const Login = () => {
       }
       const redirectTo = roleRoutes[profile.role] || '/login'
       const from = (location.state as any)?.from?.pathname || redirectTo
-      console.log('🚀 Navigating to dashboard:', redirectTo)
+      console.log('🚀 Navigating to dashboard (with profile):', redirectTo)
       navigate(from, { replace: true })
+      return
     } 
-    // If login succeeded but profile is missing, wait a bit then navigate anyway
-    // The profile will load on the dashboard page
-    else if (loginSuccess && !loading && user && !profile) {
-      console.log('⏳ Login successful but profile not loaded yet, waiting...')
-      const timeoutId = setTimeout(() => {
-        if (!profile) {
-          console.warn('⚠️ Profile still not loaded after timeout, navigating anyway')
-          // Navigate to a default dashboard - profile will load there
-          // Try to infer role from email or use admin as default
-          const email = user.email || ''
-          let defaultRole = 'admin'
-          if (email.includes('manager')) defaultRole = 'manager'
-          if (email.includes('trainer')) defaultRole = 'trainer'
-          
-          const roleRoutes: Record<string, string> = {
-            admin: '/admin/dashboard',
-            manager: '/manager/dashboard',
-            trainer: '/trainer/dashboard',
-          }
-          const redirectTo = roleRoutes[defaultRole] || '/admin/dashboard'
-          console.log('🚀 Navigating to default dashboard:', redirectTo)
-          navigate(redirectTo, { replace: true })
+    
+    // If login succeeded, navigate even without profile (profile will load on dashboard)
+    if (loginSuccess && user) {
+      console.log('⏳ Login successful, setting up navigation...')
+      
+      // Try to get profile from context first (might be loading)
+      if (profile) {
+        const roleRoutes: Record<string, string> = {
+          admin: '/admin/dashboard',
+          manager: '/manager/dashboard',
+          trainer: '/trainer/dashboard',
         }
-      }, 2000)
+        const redirectTo = roleRoutes[profile.role] || '/admin/dashboard'
+        console.log('🚀 Navigating with profile:', redirectTo)
+        navigate(redirectTo, { replace: true })
+        return
+      }
+      
+      // If no profile, wait briefly then navigate with inferred role
+      const timeoutId = setTimeout(() => {
+        console.log('⏱️ Navigation timeout - navigating without profile')
+        // Infer role from email or default to admin
+        const email = user.email || ''
+        let defaultRole = 'admin'
+        if (email.includes('manager')) defaultRole = 'manager'
+        if (email.includes('trainer')) defaultRole = 'trainer'
+        
+        const roleRoutes: Record<string, string> = {
+          admin: '/admin/dashboard',
+          manager: '/manager/dashboard',
+          trainer: '/trainer/dashboard',
+        }
+        const redirectTo = roleRoutes[defaultRole] || '/admin/dashboard'
+        console.log('🚀 Navigating to default dashboard:', redirectTo, 'for email:', email)
+        navigate(redirectTo, { replace: true })
+      }, 1500) // Reduced to 1.5 seconds
+      
       return () => clearTimeout(timeoutId)
     }
   }, [user, profile, loading, navigate, location, loginSuccess])
@@ -70,16 +93,22 @@ const Login = () => {
 
     setIsLoading(true)
     setError(null)
+    console.log('🔐 Starting sign in for:', email)
+    
     const result = await signIn(email, password)
     setIsLoading(false)
+
+    console.log('📋 Sign in result:', result)
 
     if (result?.success) {
       setLoginSuccess(true)
       toast.success('Welcome back! 🎉')
-      // Navigation will happen automatically via useEffect when profile loads
+      console.log('✅ Login successful, waiting for navigation...')
+      // Navigation will happen automatically via useEffect
     } else if (result?.error) {
       setError(result.error)
       setLoginSuccess(false)
+      console.error('❌ Login failed:', result.error)
     }
   }
 

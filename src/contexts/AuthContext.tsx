@@ -465,58 +465,40 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       if (data.user) {
-        // Set user immediately so navigation can proceed
+        // Set user and session immediately so navigation can proceed
+        console.log('✅ Authentication successful, setting user state')
         setUser(data.user)
         setSession(data.session)
+        setLoading(false) // Set loading to false immediately so navigation can proceed
         
-        // Wait a moment for session to be fully established
-        await new Promise(resolve => setTimeout(resolve, 200))
+        // Fetch profile in background (don't block)
+        console.log('🔄 Fetching profile in background for user:', data.user.id)
         
-        // Fetch profile after successful login with timeout
-        try {
-          console.log('🔄 Fetching profile after signIn for user:', data.user.id)
-          
-          // Add timeout to profile fetch
-          const profilePromise = fetchProfile(data.user.id, true)
-          const timeoutPromise = new Promise<null>((resolve) => 
-            setTimeout(() => {
-              console.warn('⏱️ Profile fetch timeout - proceeding without profile')
-              resolve(null)
-            }, 3000)
-          )
-          
-          const profileData = await Promise.race([profilePromise, timeoutPromise])
-          
-          if (profileData) {
-            setProfile(profileData)
-            console.log('✅ Profile loaded successfully after signIn:', profileData)
-          } else {
-            console.warn('⚠️ Profile not found or timeout for user:', data.user.id)
-            console.warn('💡 Profile will be fetched via onAuthStateChange listener')
-            console.warn('💡 Navigation may proceed without profile initially')
-            // Don't block - let onAuthStateChange handle it
-          }
-          
-          return { success: true }
-        } catch (profileError: any) {
-          // Ignore AbortError
-          if (profileError.name === 'AbortError' || profileError.message?.includes('aborted')) {
-            console.log('ℹ️ Profile fetch aborted (expected)')
-            return { success: true }
-          }
-          
-          // Log error but don't block login
-          console.error('❌ Error fetching profile after login:', {
-            error: profileError,
-            code: profileError.code,
-            message: profileError.message,
-            details: profileError.details,
-            hint: profileError.hint,
+        // Start profile fetch but don't wait for it
+        fetchProfile(data.user.id, true)
+          .then((profileData) => {
+            if (profileData) {
+              console.log('✅ Profile loaded in background:', profileData)
+              setProfile(profileData)
+            } else {
+              console.warn('⚠️ Profile not found, will be fetched via onAuthStateChange')
+            }
           })
-          console.error('💡 Login will proceed - profile will be fetched via onAuthStateChange')
-          
-          return { success: true }
-        }
+          .catch((profileError: any) => {
+            // Ignore AbortError
+            if (profileError.name === 'AbortError' || profileError.message?.includes('aborted')) {
+              return
+            }
+            console.error('❌ Error fetching profile in background:', {
+              code: profileError.code,
+              message: profileError.message,
+              details: profileError.details,
+            })
+          })
+        
+        // Return success immediately - don't wait for profile
+        console.log('✅ SignIn complete - navigation can proceed')
+        return { success: true }
       }
 
       return { success: false, error: 'No user data returned' }
