@@ -83,6 +83,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           return null
         }
         
+        // Log ALL errors to console for debugging (don't suppress)
+        console.error('❌ Profile fetch error:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          userId: userId,
+          sessionUserId: currentSession?.user?.id,
+        })
+        
         // If profile not found and autoCreate is enabled, try to create it
         if (error.code === 'PGRST116' && autoCreate) {
           console.warn('⚠️ Profile not found for user:', userId)
@@ -455,33 +465,56 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       if (data.user) {
-        // Wait a moment for session to be fully established
-        // Then fetch profile - it will also be fetched via onAuthStateChange
-        // but we try here first for immediate feedback
-        await new Promise(resolve => setTimeout(resolve, 100))
+        // Set user immediately so navigation can proceed
+        setUser(data.user)
+        setSession(data.session)
         
-        // Fetch profile after successful login
+        // Wait a moment for session to be fully established
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
+        // Fetch profile after successful login with timeout
         try {
           console.log('🔄 Fetching profile after signIn for user:', data.user.id)
-          const profileData = await fetchProfile(data.user.id, true)
+          
+          // Add timeout to profile fetch
+          const profilePromise = fetchProfile(data.user.id, true)
+          const timeoutPromise = new Promise<null>((resolve) => 
+            setTimeout(() => {
+              console.warn('⏱️ Profile fetch timeout - proceeding without profile')
+              resolve(null)
+            }, 3000)
+          )
+          
+          const profileData = await Promise.race([profilePromise, timeoutPromise])
+          
           if (profileData) {
             setProfile(profileData)
             console.log('✅ Profile loaded successfully after signIn:', profileData)
-            return { success: true }
           } else {
-            console.warn('⚠️ Profile not found for user:', data.user.id)
+            console.warn('⚠️ Profile not found or timeout for user:', data.user.id)
             console.warn('💡 Profile will be fetched via onAuthStateChange listener')
-            // Don't return error - let onAuthStateChange handle it
-            // The profile should load via the auth state change listener
-            return { success: true }
+            console.warn('💡 Navigation may proceed without profile initially')
+            // Don't block - let onAuthStateChange handle it
           }
+          
+          return { success: true }
         } catch (profileError: any) {
           // Ignore AbortError
           if (profileError.name === 'AbortError' || profileError.message?.includes('aborted')) {
-            return { success: true } // Return success, profile will load via onAuthStateChange
+            console.log('ℹ️ Profile fetch aborted (expected)')
+            return { success: true }
           }
-          console.error('❌ Error fetching profile after login:', profileError)
-          // Don't return error - let onAuthStateChange handle it
+          
+          // Log error but don't block login
+          console.error('❌ Error fetching profile after login:', {
+            error: profileError,
+            code: profileError.code,
+            message: profileError.message,
+            details: profileError.details,
+            hint: profileError.hint,
+          })
+          console.error('💡 Login will proceed - profile will be fetched via onAuthStateChange')
+          
           return { success: true }
         }
       }

@@ -19,6 +19,7 @@ const Login = () => {
 
   // Redirect if already logged in or after successful login
   useEffect(() => {
+    // If we have user and profile, navigate immediately
     if (!loading && user && profile) {
       const roleRoutes: Record<string, string> = {
         admin: '/admin/dashboard',
@@ -27,13 +28,31 @@ const Login = () => {
       }
       const redirectTo = roleRoutes[profile.role] || '/login'
       const from = (location.state as any)?.from?.pathname || redirectTo
+      console.log('🚀 Navigating to dashboard:', redirectTo)
       navigate(from, { replace: true })
-    } else if (loginSuccess && !loading && user && !profile) {
-      // Login succeeded but profile not loaded after 2 seconds (reduced from 3)
+    } 
+    // If login succeeded but profile is missing, wait a bit then navigate anyway
+    // The profile will load on the dashboard page
+    else if (loginSuccess && !loading && user && !profile) {
+      console.log('⏳ Login successful but profile not loaded yet, waiting...')
       const timeoutId = setTimeout(() => {
         if (!profile) {
-          setError('Profile not found. Please contact support or check if your account is properly set up.')
-          setLoginSuccess(false)
+          console.warn('⚠️ Profile still not loaded after timeout, navigating anyway')
+          // Navigate to a default dashboard - profile will load there
+          // Try to infer role from email or use admin as default
+          const email = user.email || ''
+          let defaultRole = 'admin'
+          if (email.includes('manager')) defaultRole = 'manager'
+          if (email.includes('trainer')) defaultRole = 'trainer'
+          
+          const roleRoutes: Record<string, string> = {
+            admin: '/admin/dashboard',
+            manager: '/manager/dashboard',
+            trainer: '/trainer/dashboard',
+          }
+          const redirectTo = roleRoutes[defaultRole] || '/admin/dashboard'
+          console.log('🚀 Navigating to default dashboard:', redirectTo)
+          navigate(redirectTo, { replace: true })
         }
       }, 2000)
       return () => clearTimeout(timeoutId)
