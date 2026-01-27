@@ -8,7 +8,6 @@ import AssessmentDetails from '@/components/AssessmentDetails'
 import ManagerSmartDashboard from '@/components/dashboard/ManagerSmartDashboard'
 import NotificationDropdown from '@/components/dashboard/NotificationDropdown'
 import QuickActions from '@/components/dashboard/QuickActions'
-import SoundToggle from '@/components/ui/SoundToggle'
 import { checkAlerts } from '@/utils/notifications'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
@@ -108,7 +107,6 @@ const ManagerDashboard = () => {
               <h1 className="text-xl font-bold text-gray-900">Manager Dashboard</h1>
             </div>
             <div className="flex items-center gap-4">
-              <SoundToggle />
               <NotificationDropdown />
               <span className="text-sm text-gray-600">{profile?.full_name || user?.email}</span>
               <button

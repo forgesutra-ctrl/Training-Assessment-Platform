@@ -4,9 +4,6 @@ import { fetchUserGoals, createGoal, updateGoal } from '@/utils/gamification'
 import { Goal } from '@/types'
 import { useAuthContext } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import Confetti from '@/components/animations/Confetti'
-import SuccessAnimation from '@/components/animations/SuccessAnimation'
-import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 const GoalTracking = () => {
@@ -15,8 +12,6 @@ const GoalTracking = () => {
   const [goals, setGoals] = useState<Goal[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [completedGoal, setCompletedGoal] = useState<Goal | null>(null)
-  const [showSuccess, setShowSuccess] = useState(false)
-  const [confettiTrigger, setConfettiTrigger] = useState(false)
   const [newGoal, setNewGoal] = useState({
     type: 'overall_rating' as 'overall_rating' | 'parameter' | 'assessment_count',
     target_value: '',
@@ -45,13 +40,7 @@ const GoalTracking = () => {
         )
         if (newlyCompleted) {
           setCompletedGoal(newlyCompleted)
-          setShowSuccess(true)
-          setConfettiTrigger(true)
-          soundManager.playSuccess()
-          setTimeout(() => {
-            setConfettiTrigger(false)
-            setShowSuccess(false)
-          }, 3000)
+          toast.success(`Goal achieved: ${newlyCompleted.description || 'Congratulations!'}`)
         }
       }
       
@@ -134,13 +123,6 @@ const GoalTracking = () => {
 
   return (
     <div className="space-y-6">
-      {/* Celebrations */}
-      <Confetti trigger={confettiTrigger} variant="success" />
-      <SuccessAnimation
-        show={showSuccess}
-        message={completedGoal ? `Goal achieved: ${completedGoal.description || 'Congratulations!'}` : undefined}
-        onComplete={() => setShowSuccess(false)}
-      />
 
       {/* Header */}
       <div className="flex items-center justify-between">

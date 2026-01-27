@@ -1,7 +1,5 @@
-import { motion } from 'framer-motion'
 import { ReactNode } from 'react'
 import { FileText, Inbox, Search, Users, TrendingUp, Target } from 'lucide-react'
-import { slideUp, fadeIn } from '@/utils/animations'
 
 interface EmptyStateProps {
   icon?: ReactNode
@@ -36,63 +34,38 @@ const EmptyState = ({
   const displayIcon = icon || defaultIcons[variant]
 
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={{
-        visible: {
-          transition: { staggerChildren: 0.1 },
-        },
-      }}
-      className="flex flex-col items-center justify-center py-12 px-4 text-center"
-    >
-      <motion.div
-        variants={slideUp}
-        className="mb-6"
-      >
+    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+      <div className="mb-6">
         {displayIcon}
-      </motion.div>
+      </div>
 
-      <motion.h3
-        variants={fadeIn}
-        className="text-xl font-semibold text-gray-900 mb-2"
-      >
+      <h3 className="text-xl font-semibold text-gray-900 mb-2">
         {title}
-      </motion.h3>
+      </h3>
 
-      <motion.p
-        variants={fadeIn}
-        className="text-gray-600 mb-6 max-w-md"
-      >
+      <p className="text-gray-600 mb-6 max-w-md">
         {description}
-      </motion.p>
+      </p>
 
-      <motion.div
-        variants={fadeIn}
-        className="flex flex-col sm:flex-row gap-3"
-      >
+      <div className="flex flex-col sm:flex-row gap-3">
         {onAction && actionLabel && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={onAction}
-            className="px-6 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-lg hover:shadow-xl"
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700"
           >
             {actionLabel}
-          </motion.button>
+          </button>
         )}
         {showDemoData && onShowDemo && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={onShowDemo}
-            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
           >
             Show me with demo data
-          </motion.button>
+          </button>
         )}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
 }
 

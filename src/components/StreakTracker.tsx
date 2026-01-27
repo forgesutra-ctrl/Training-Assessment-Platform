@@ -1,22 +1,16 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { Flame, TrendingUp, Calendar, Award } from 'lucide-react'
 import { fetchUserStreaks, updateStreak } from '@/utils/gamification'
 import { Streak } from '@/types'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { fetchTrainerAssessments } from '@/utils/trainerAssessments'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import StreakFlame from '@/components/animations/StreakFlame'
-import Confetti from '@/components/animations/Confetti'
-import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 const StreakTracker = () => {
   const { user } = useAuthContext()
   const [loading, setLoading] = useState(true)
   const [streaks, setStreaks] = useState<Streak[]>([])
-  const [milestoneReached, setMilestoneReached] = useState(false)
-  const [confettiTrigger, setConfettiTrigger] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -47,14 +41,7 @@ const StreakTracker = () => {
         data.forEach((streak) => {
           const milestone = getStreakMilestone(streak.current_streak)
           if (milestone && streak.current_streak % 7 === 0) {
-            setMilestoneReached(true)
-            setConfettiTrigger(true)
-            soundManager.playAchievement()
             toast.success(`🔥 ${milestone.label}! ${streak.current_streak} day streak!`)
-            setTimeout(() => {
-              setConfettiTrigger(false)
-              setMilestoneReached(false)
-            }, 3000)
           }
         })
       }
@@ -96,8 +83,6 @@ const StreakTracker = () => {
 
   return (
     <div className="space-y-6">
-      {/* Celebration */}
-      <Confetti trigger={confettiTrigger} variant="achievement" />
 
       {/* Header */}
       <div>
@@ -108,13 +93,9 @@ const StreakTracker = () => {
       {/* Streaks */}
       {streaks.length === 0 ? (
         <div className="card text-center py-12">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring' }}
-          >
+          <div>
             <Flame className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          </motion.div>
+          </div>
           <p className="text-gray-500 mb-2">No active streaks yet</p>
           <p className="text-sm text-gray-400">Start receiving assessments to build your streak!</p>
         </div>
@@ -141,7 +122,7 @@ const StreakTracker = () => {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <StreakFlame streak={streak.current_streak} size="md" />
+                  <Flame className="w-8 h-8 text-orange-500" />
                   <div>
                     <h3 className="font-semibold text-gray-900">{getStreakLabel(streak.type)}</h3>
                     <p className="text-sm text-gray-600">

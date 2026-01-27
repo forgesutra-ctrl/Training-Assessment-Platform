@@ -1,6 +1,4 @@
-import { motion } from 'framer-motion'
 import { ReactNode } from 'react'
-import { cardHover } from '@/utils/animations'
 
 interface AnimatedCardProps {
   children: ReactNode
@@ -16,13 +14,12 @@ const AnimatedCard = ({
   hoverable = true,
 }: AnimatedCardProps) => {
   return (
-    <motion.div
-      whileHover={hoverable ? cardHover : {}}
+    <div
       onClick={onClick}
       className={`card ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
       {children}
-    </motion.div>
+    </div>
   )
 }
 

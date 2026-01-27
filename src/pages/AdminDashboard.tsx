@@ -20,7 +20,6 @@ import ScenarioModeling from '@/components/admin/ScenarioModeling'
 import AdminSmartDashboard from '@/components/dashboard/AdminSmartDashboard'
 import NotificationDropdown from '@/components/dashboard/NotificationDropdown'
 import QuickActions from '@/components/dashboard/QuickActions'
-import SoundToggle from '@/components/ui/SoundToggle'
 import SmartSearch from '@/components/SmartSearch'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
@@ -159,7 +158,6 @@ const AdminDashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <SoundToggle />
               <NotificationDropdown />
               <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg">
                 <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">

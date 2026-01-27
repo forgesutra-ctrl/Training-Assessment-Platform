@@ -1,5 +1,4 @@
-import { motion } from 'framer-motion'
-import { useState, ReactNode } from 'react'
+import { ReactNode } from 'react'
 
 interface AnimatedInputProps {
   type?: string
@@ -11,6 +10,7 @@ interface AnimatedInputProps {
   icon?: ReactNode
   className?: string
   required?: boolean
+  disabled?: boolean
 }
 
 const AnimatedInput = ({
@@ -23,9 +23,8 @@ const AnimatedInput = ({
   icon,
   className = '',
   required = false,
+  disabled = false,
 }: AnimatedInputProps) => {
-  const [isFocused, setIsFocused] = useState(false)
-
   return (
     <div className={`space-y-1 ${className}`}>
       {label && (
@@ -34,16 +33,7 @@ const AnimatedInput = ({
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
-      <motion.div
-        animate={{
-          scale: isFocused ? 1.01 : 1,
-          boxShadow: isFocused
-            ? '0 0 0 3px rgba(99, 102, 241, 0.1)'
-            : '0 0 0 0px rgba(99, 102, 241, 0)',
-        }}
-        transition={{ duration: 0.2 }}
-        className="relative"
-      >
+      <div className="relative">
         {icon && (
           <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
             {icon}
@@ -53,21 +43,16 @@ const AnimatedInput = ({
           type={type}
           value={value}
           onChange={onChange}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
-          className={`input-field ${icon ? 'pl-10' : ''} ${error ? 'border-red-300 focus:ring-red-500' : ''}`}
+          className={`input-field ${icon ? 'pl-10' : ''} ${error ? 'border-red-300 focus:ring-red-500' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           required={required}
+          disabled={disabled}
         />
-      </motion.div>
+      </div>
       {error && (
-        <motion.p
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-sm text-red-600"
-        >
+        <p className="text-sm text-red-600">
           {error}
-        </motion.p>
+        </p>
       )}
     </div>
   )

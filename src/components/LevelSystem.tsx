@@ -4,8 +4,6 @@ import { fetchUserXP, fetchXPHistory, getLevelName, calculateLevel } from '@/uti
 import { UserXP, XPHistory } from '@/types'
 import { useAuthContext } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import LevelUpAnimation from '@/components/animations/LevelUpAnimation'
-import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 const LevelSystem = () => {
@@ -38,7 +36,6 @@ const LevelSystem = () => {
         const hoursSince = (now.getTime() - levelUpDate.getTime()) / (1000 * 60 * 60)
         if (hoursSince < 24) {
           setShowLevelUp(true)
-          soundManager.playLevelUp()
         }
       }
     } catch (error: any) {
@@ -80,12 +77,6 @@ const LevelSystem = () => {
 
   return (
     <div className="space-y-6">
-      {/* Level Up Animation */}
-      <LevelUpAnimation
-        show={showLevelUp}
-        level={xpData.current_level}
-        onComplete={() => setShowLevelUp(false)}
-      />
 
       {/* Current Level Card */}
       <div className={`card bg-gradient-to-br ${getLevelColor(xpData.current_level)} border-2 border-white shadow-lg`}>

@@ -1,6 +1,4 @@
-import { motion } from 'framer-motion'
 import { AlertCircle, RefreshCw, Home, HelpCircle } from 'lucide-react'
-import { shake, fadeIn } from '@/utils/animations'
 import { useNavigate } from 'react-router-dom'
 
 interface ErrorStateProps {
@@ -34,7 +32,7 @@ const ErrorState = ({
       title: "Oops! Page not found",
       icon: <HelpCircle className="w-20 h-20 text-gray-400" />,
       color: 'gray',
-      message: message || "The page you're looking for doesn't exist. Maybe it went on vacation? 🏖️",
+      message: message || "The page you're looking for doesn't exist.",
     },
     '403': {
       title: 'Access Denied',
@@ -53,87 +51,57 @@ const ErrorState = ({
   const config = errorConfig[variant]
 
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={{
-        visible: {
-          transition: { staggerChildren: 0.1 },
-        },
-      }}
-      className="flex flex-col items-center justify-center min-h-[400px] px-4 text-center"
-    >
-      <motion.div
-        variants={shake}
-        className="mb-6"
-      >
+    <div className="flex flex-col items-center justify-center min-h-[400px] px-4 text-center">
+      <div className="mb-6">
         {config.icon}
-      </motion.div>
+      </div>
 
-      <motion.h2
-        variants={fadeIn}
-        className="text-3xl font-bold text-gray-900 mb-3"
-      >
+      <h2 className="text-3xl font-bold text-gray-900 mb-3">
         {config.title}
-      </motion.h2>
+      </h2>
 
-      <motion.p
-        variants={fadeIn}
-        className="text-gray-600 mb-8 max-w-md"
-      >
+      <p className="text-gray-600 mb-8 max-w-md">
         {config.message || message}
-      </motion.p>
+      </p>
 
-      <motion.div
-        variants={fadeIn}
-        className="flex flex-wrap items-center justify-center gap-3"
-      >
+      <div className="flex flex-wrap items-center justify-center gap-3">
         {showRefresh && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={() => window.location.reload()}
-            className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-lg"
+            className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700"
           >
             <RefreshCw className="w-5 h-5" />
             Try Again
-          </motion.button>
+          </button>
         )}
 
         {showHome && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+            className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
           >
             <Home className="w-5 h-5" />
             Go Home
-          </motion.button>
+          </button>
         )}
 
         {onAction && actionLabel && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={onAction}
-            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
           >
             {actionLabel}
-          </motion.button>
+          </button>
         )}
-      </motion.div>
+      </div>
 
       {variant === '404' && (
-        <motion.div
-          variants={fadeIn}
-          className="mt-8 text-sm text-gray-500"
-        >
+        <div className="mt-8 text-sm text-gray-500">
           <p>Error Code: 404</p>
           <p className="mt-2">Need help? <a href="/support" className="text-primary-600 hover:underline">Contact Support</a></p>
-        </motion.div>
+        </div>
       )}
-    </motion.div>
+    </div>
   )
 }
 

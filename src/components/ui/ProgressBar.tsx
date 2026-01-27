@@ -1,5 +1,3 @@
-import { motion } from 'framer-motion'
-
 interface ProgressBarProps {
   progress: number // 0-100
   label?: string
@@ -48,10 +46,8 @@ const ProgressBar = ({
         </div>
       )}
       <div className={`w-full bg-gray-200 rounded-full overflow-hidden ${heightClasses[size]}`}>
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${clampedProgress}%` }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
+        <div
+          style={{ width: `${clampedProgress}%` }}
           className={`h-full ${colorClasses[color]} rounded-full`}
         />
       </div>

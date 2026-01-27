@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -19,12 +18,9 @@ import { ASSESSMENT_STRUCTURE, ManagerAssessment, ParameterId } from '@/types'
 import StarRating from './StarRating'
 import LoadingSpinner from './LoadingSpinner'
 import AIFeedbackAssistant from './AIFeedbackAssistant'
-import SuccessAnimation from './animations/SuccessAnimation'
-import Confetti from './animations/Confetti'
 import AnimatedButton from './ui/AnimatedButton'
 import AnimatedCard from './ui/AnimatedCard'
 import ShakeOnError from './ui/ShakeOnError'
-import { soundManager } from '@/utils/sounds'
 import toast from 'react-hot-toast'
 
 interface Trainer {
@@ -54,8 +50,6 @@ const AssessmentForm = () => {
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [errors, setErrors] = useState<FormErrors>({})
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['trainer_readiness']))
-  const [showSuccess, setShowSuccess] = useState(false)
-  const [confettiTrigger, setConfettiTrigger] = useState(false)
 
   // Initialize form data with all 21 parameters
   const initializeFormData = (): AssessmentFormData => {
@@ -250,7 +244,6 @@ const AssessmentForm = () => {
 
     if (!validateForm()) {
       toast.error('Please complete all required fields')
-      soundManager.playError()
       return
     }
 
@@ -285,21 +278,11 @@ const AssessmentForm = () => {
       // Clear draft
       localStorage.removeItem('assessment_draft')
 
-      // Celebration!
-      setConfettiTrigger(true)
-      setShowSuccess(true)
-      soundManager.playSuccess()
       toast.success('Assessment submitted successfully! 🎉')
-
-      setTimeout(() => {
-        setConfettiTrigger(false)
-        setShowSuccess(false)
-        navigate('/manager/dashboard')
-      }, 3000)
+      navigate('/manager/dashboard')
     } catch (error: any) {
       console.error('Error submitting assessment:', error)
       toast.error(error.message || 'Failed to submit assessment')
-      soundManager.playError()
     } finally {
       setSubmitting(false)
     }
@@ -318,12 +301,6 @@ const AssessmentForm = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <Confetti trigger={confettiTrigger} variant="success" />
-      <SuccessAnimation
-        show={showSuccess}
-        message="Assessment submitted successfully!"
-        onComplete={() => setShowSuccess(false)}
-      />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
@@ -363,10 +340,9 @@ const AssessmentForm = () => {
             </div>
             <div className="w-48">
               <div className="w-full bg-gray-200 rounded-full h-3">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(progress.completed / progress.total) * 100}%` }}
-                  className="bg-primary-600 h-3 rounded-full transition-all duration-500"
+                <div
+                  style={{ width: `${(progress.completed / progress.total) * 100}%` }}
+                  className="bg-primary-600 h-3 rounded-full"
                 />
               </div>
             </div>
@@ -464,15 +440,8 @@ const AssessmentForm = () => {
                 </button>
 
                 {/* Category Content */}
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
+                {isExpanded && (
+                  <div className="overflow-hidden">
                       <div className="px-4 pb-4 space-y-6 border-t border-gray-200 pt-4 mt-4">
                         {category.parameters.map((param) => {
                           const rating = (formData[param.id] as number) || 0
@@ -549,14 +518,10 @@ const AssessmentForm = () => {
                                     />
                                     <ShakeOnError hasError={!!commentError}>
                                       {commentError && (
-                                        <motion.p
-                                          initial={{ opacity: 0 }}
-                                          animate={{ opacity: 1 }}
-                                          className="mt-1 text-sm text-red-600 flex items-center gap-1"
-                                        >
+                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
                                           <AlertCircle className="w-4 h-4" />
                                           {commentError}
-                                        </motion.p>
+                                        </p>
                                       )}
                                     </ShakeOnError>
                                     {!commentError && comments.length > 0 && comments.length < 20 && (
@@ -571,10 +536,9 @@ const AssessmentForm = () => {
                           )
                         })}
                       </div>
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
-              </AnimatedCard>
+                </AnimatedCard>
             )
           })}
 
@@ -612,7 +576,6 @@ const AssessmentForm = () => {
               size="lg"
               disabled={submitting || !allComplete}
               className="min-w-[200px]"
-              onClick={() => soundManager.playClick()}
             >
               {submitting ? (
                 <>

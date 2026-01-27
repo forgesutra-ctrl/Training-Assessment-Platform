@@ -1,5 +1,3 @@
-import { motion } from 'framer-motion'
-
 interface SkeletonLoaderProps {
   type?: 'card' | 'table' | 'list' | 'text' | 'metric'
   count?: number
@@ -7,40 +5,19 @@ interface SkeletonLoaderProps {
 }
 
 const SkeletonLoader = ({ type = 'card', count = 1, className = '' }: SkeletonLoaderProps) => {
-  const pulseAnimation = {
-    opacity: [0.5, 1, 0.5],
-    transition: {
-      duration: 1.5,
-      repeat: Infinity,
-      ease: 'easeInOut',
-    },
-  }
-
   const renderSkeleton = () => {
     switch (type) {
       case 'card':
         return (
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center gap-4 mb-4">
-              <motion.div
-                animate={pulseAnimation}
-                className="w-12 h-12 bg-gray-200 rounded-lg"
-              />
+              <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse" />
               <div className="flex-1 space-y-2">
-                <motion.div
-                  animate={pulseAnimation}
-                  className="h-4 bg-gray-200 rounded w-3/4"
-                />
-                <motion.div
-                  animate={pulseAnimation}
-                  className="h-3 bg-gray-200 rounded w-1/2"
-                />
+                <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse" />
+                <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
               </div>
             </div>
-            <motion.div
-              animate={pulseAnimation}
-              className="h-20 bg-gray-200 rounded"
-            />
+            <div className="h-20 bg-gray-200 rounded animate-pulse" />
           </div>
         )
 
@@ -48,32 +25,17 @@ const SkeletonLoader = ({ type = 'card', count = 1, className = '' }: SkeletonLo
         return (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-200">
-              <motion.div
-                animate={pulseAnimation}
-                className="h-6 bg-gray-200 rounded w-1/4"
-              />
+              <div className="h-6 bg-gray-200 rounded w-1/4 animate-pulse" />
             </div>
             <div className="divide-y divide-gray-200">
               {Array.from({ length: count }).map((_, i) => (
                 <div key={i} className="p-4 flex items-center gap-4">
-                  <motion.div
-                    animate={pulseAnimation}
-                    className="w-10 h-10 bg-gray-200 rounded-full"
-                  />
+                  <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
                   <div className="flex-1 space-y-2">
-                    <motion.div
-                      animate={pulseAnimation}
-                      className="h-4 bg-gray-200 rounded w-1/3"
-                    />
-                    <motion.div
-                      animate={pulseAnimation}
-                      className="h-3 bg-gray-200 rounded w-1/2"
-                    />
+                    <div className="h-4 bg-gray-200 rounded w-1/3 animate-pulse" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
                   </div>
-                  <motion.div
-                    animate={pulseAnimation}
-                    className="h-8 bg-gray-200 rounded w-20"
-                  />
+                  <div className="h-8 bg-gray-200 rounded w-20 animate-pulse" />
                 </div>
               ))}
             </div>
@@ -85,19 +47,10 @@ const SkeletonLoader = ({ type = 'card', count = 1, className = '' }: SkeletonLo
           <div className="space-y-3">
             {Array.from({ length: count }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                <motion.div
-                  animate={pulseAnimation}
-                  className="w-10 h-10 bg-gray-200 rounded-full"
-                />
+                <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
                 <div className="flex-1 space-y-2">
-                  <motion.div
-                    animate={pulseAnimation}
-                    className="h-4 bg-gray-200 rounded w-3/4"
-                  />
-                  <motion.div
-                    animate={pulseAnimation}
-                    className="h-3 bg-gray-200 rounded w-1/2"
-                  />
+                  <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
                 </div>
               </div>
             ))}
@@ -108,10 +61,9 @@ const SkeletonLoader = ({ type = 'card', count = 1, className = '' }: SkeletonLo
         return (
           <div className="space-y-2">
             {Array.from({ length: count }).map((_, i) => (
-              <motion.div
+              <div
                 key={i}
-                animate={pulseAnimation}
-                className={`h-4 bg-gray-200 rounded ${i === count - 1 ? 'w-3/4' : 'w-full'}`}
+                className={`h-4 bg-gray-200 rounded animate-pulse ${i === count - 1 ? 'w-3/4' : 'w-full'}`}
               />
             ))}
           </div>
@@ -120,18 +72,9 @@ const SkeletonLoader = ({ type = 'card', count = 1, className = '' }: SkeletonLo
       case 'metric':
         return (
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <motion.div
-              animate={pulseAnimation}
-              className="h-4 bg-gray-200 rounded w-1/3 mb-4"
-            />
-            <motion.div
-              animate={pulseAnimation}
-              className="h-12 bg-gray-200 rounded w-1/2 mb-2"
-            />
-            <motion.div
-              animate={pulseAnimation}
-              className="h-3 bg-gray-200 rounded w-1/4"
-            />
+            <div className="h-4 bg-gray-200 rounded w-1/3 mb-4 animate-pulse" />
+            <div className="h-12 bg-gray-200 rounded w-1/2 mb-2 animate-pulse" />
+            <div className="h-3 bg-gray-200 rounded w-1/4 animate-pulse" />
           </div>
         )
 

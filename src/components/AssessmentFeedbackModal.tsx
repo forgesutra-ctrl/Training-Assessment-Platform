@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { X, Star, Calendar, User, Printer, ChevronDown, ChevronUp } from 'lucide-react'
 import { TrainerAssessmentWithDetails, ASSESSMENT_STRUCTURE } from '@/types'
 import { getScoreColor, getScoreBgColor, calculateCategoryAverages } from '@/utils/trainerStats'
-import { motion, AnimatePresence } from 'framer-motion'
 
 interface AssessmentFeedbackModalProps {
   assessment: TrainerAssessmentWithDetails
@@ -167,15 +166,8 @@ const AssessmentFeedbackModal = ({ assessment, onClose }: AssessmentFeedbackModa
                   </button>
 
                   {/* Category Content */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="overflow-hidden"
-                      >
+                  {isExpanded && (
+                    <div className="overflow-hidden">
                         <div className="px-4 pb-4 space-y-4 border-t border-gray-200 pt-4 mt-4">
                           {category.parameters.map((param) => {
                             const rating = (assessment as any)[param.id] as number | null
@@ -217,9 +209,8 @@ const AssessmentFeedbackModal = ({ assessment, onClose }: AssessmentFeedbackModa
                             )
                           })}
                         </div>
-                      </motion.div>
+                      </div>
                     )}
-                  </AnimatePresence>
                 </div>
               )
             })}
