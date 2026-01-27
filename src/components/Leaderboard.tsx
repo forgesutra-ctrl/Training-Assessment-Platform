@@ -24,11 +24,26 @@ const Leaderboard = () => {
   }, [user, boardType, period, parameter])
 
   const loadData = async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const [pref, trainers] = await Promise.all([
-        getLeaderboardPreference(user!.id),
-        fetchAllTrainersWithStats(period),
+        getLeaderboardPreference(user.id).catch((error: any) => {
+          // If table doesn't exist or RLS blocks access, return null
+          if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+            console.warn('Leaderboard preferences table not accessible:', error.message)
+            return null
+          }
+          throw error
+        }),
+        fetchAllTrainersWithStats(period).catch((error: any) => {
+          console.error('Error fetching trainer stats:', error)
+          return []
+        }),
       ])
 
       setPreference(pref)
@@ -36,21 +51,21 @@ const Leaderboard = () => {
       // Build leaderboard from trainer data
       let entries: LeaderboardEntry[] = []
 
-      if (boardType === 'top_performers') {
+      if (boardType === 'top_performers' && trainers.length > 0) {
         entries = trainers
           .filter((t) => {
             // Only show if user opted in or it's the current user
-            if (!pref?.opt_in && t.id !== user!.id) return false
+            if (!pref?.opt_in && t.id !== user.id) return false
             return true
           })
           .map((t, index) => ({
             rank: index + 1,
             user_id: t.id,
-            user_name: pref?.show_name || t.id === user!.id ? t.full_name : 'Anonymous',
+            user_name: pref?.show_name || t.id === user.id ? t.full_name : 'Anonymous',
             team_name: t.team_name,
             score: t.current_month_avg || t.all_time_avg,
             metric: 'Average Rating',
-            is_current_user: t.id === user!.id,
+            is_current_user: t.id === user.id,
           }))
           .sort((a, b) => b.score - a.score)
           .slice(0, 20)
@@ -60,13 +75,17 @@ const Leaderboard = () => {
       setLeaderboard(entries)
 
       // Check if user is in top 3
-      const userRank = entries.findIndex((e) => e.user_id === user!.id)
+      const userRank = entries.findIndex((e) => e.user_id === user.id)
       if (userRank >= 0 && userRank < 3) {
         toast.success('Congratulations! You\'re in the top 3! 🏆')
       }
     } catch (error: any) {
       console.error('Error loading leaderboard:', error)
-      toast.error('Failed to load leaderboard')
+      // Don't show error toast if gamification is disabled or tables don't exist
+      if (error.code !== 'PGRST116' && error.code !== '42P01' && !error.message?.includes('relation') && !error.message?.includes('permission')) {
+        toast.error('Failed to load leaderboard')
+      }
+      setLeaderboard([])
     } finally {
       setLoading(false)
     }

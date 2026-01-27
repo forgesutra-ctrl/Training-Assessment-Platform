@@ -27,13 +27,25 @@ const GoalTracking = () => {
   }, [user])
 
   const loadGoals = async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const previousGoals = goals
-      const data = await fetchUserGoals(user!.id)
+      const data = await fetchUserGoals(user.id).catch((error: any) => {
+        // If table doesn't exist or RLS blocks access, return empty array
+        if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+          console.warn('Goals table not accessible:', error.message)
+          return []
+        }
+        throw error
+      })
       
       // Check for newly completed goals
-      if (previousGoals.length > 0) {
+      if (previousGoals.length > 0 && data.length > 0) {
         const newlyCompleted = data.find(
           (g) => g.status === 'completed' && 
           !previousGoals.find((pg) => pg.id === g.id && pg.status === 'completed')
@@ -44,10 +56,14 @@ const GoalTracking = () => {
         }
       }
       
-      setGoals(data)
+      setGoals(data || [])
     } catch (error: any) {
       console.error('Error loading goals:', error)
-      toast.error('Failed to load goals')
+      // Don't show error toast if gamification is disabled or tables don't exist
+      if (error.code !== 'PGRST116' && error.code !== '42P01' && !error.message?.includes('relation') && !error.message?.includes('permission')) {
+        toast.error('Failed to load goals')
+      }
+      setGoals([])
     } finally {
       setLoading(false)
     }

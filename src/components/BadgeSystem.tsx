@@ -21,12 +21,31 @@ const BadgeSystem = () => {
   }, [user])
 
   const loadBadges = async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const previousCount = earnedBadges.length
       const [earned, all] = await Promise.all([
-        fetchUserBadges(user!.id),
-        fetchAllBadges(),
+        fetchUserBadges(user.id).catch((error: any) => {
+          // If table doesn't exist or RLS blocks access, return empty array
+          if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+            console.warn('Badges table not accessible:', error.message)
+            return []
+          }
+          throw error
+        }),
+        fetchAllBadges().catch((error: any) => {
+          // If table doesn't exist or RLS blocks access, return empty array
+          if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+            console.warn('Badges table not accessible:', error.message)
+            return []
+          }
+          throw error
+        }),
       ])
       
       // Check for new badges
@@ -36,11 +55,16 @@ const BadgeSystem = () => {
         toast.success(`Badge earned: ${newestBadge.badge?.name || 'New Badge!'}`)
       }
       
-      setEarnedBadges(earned)
-      setAllBadges(all)
+      setEarnedBadges(earned || [])
+      setAllBadges(all || [])
     } catch (error: any) {
       console.error('Error loading badges:', error)
-      toast.error('Failed to load badges')
+      // Don't show error toast if gamification is disabled or tables don't exist
+      if (error.code !== 'PGRST116' && error.code !== '42P01' && !error.message?.includes('relation') && !error.message?.includes('permission')) {
+        toast.error('Failed to load badges')
+      }
+      setEarnedBadges([])
+      setAllBadges([])
     } finally {
       setLoading(false)
     }

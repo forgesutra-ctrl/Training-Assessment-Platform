@@ -19,21 +19,39 @@ const StreakTracker = () => {
   }, [user])
 
   const loadStreaks = async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
-      const data = await fetchUserStreaks(user!.id)
+      const data = await fetchUserStreaks(user.id).catch((error: any) => {
+        // If table doesn't exist or RLS blocks access, return empty array
+        if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+          console.warn('Streaks table not accessible:', error.message)
+          return []
+        }
+        throw error
+      })
 
       // If no streaks exist, check assessments and create initial streaks
       if (data.length === 0) {
-        const assessments = await fetchTrainerAssessments(user!.id)
-        if (assessments.length > 0) {
-          // Create improvement streak
-          await updateStreak(user!.id, 'improvement', assessments[0].assessment_date)
-          // Create assessment received streak
-          await updateStreak(user!.id, 'assessment_received', assessments[0].assessment_date)
+        try {
+          const assessments = await fetchTrainerAssessments(user.id)
+          if (assessments.length > 0) {
+            // Create improvement streak
+            await updateStreak(user.id, 'improvement', assessments[0].assessment_date).catch(() => {})
+            // Create assessment received streak
+            await updateStreak(user.id, 'assessment_received', assessments[0].assessment_date).catch(() => {})
+          }
+          const updated = await fetchUserStreaks(user.id).catch(() => [])
+          setStreaks(updated || [])
+        } catch (error: any) {
+          // If streak creation fails, just show empty state
+          console.warn('Could not initialize streaks:', error.message)
+          setStreaks([])
         }
-        const updated = await fetchUserStreaks(user!.id)
-        setStreaks(updated)
       } else {
         setStreaks(data)
         
@@ -47,7 +65,11 @@ const StreakTracker = () => {
       }
     } catch (error: any) {
       console.error('Error loading streaks:', error)
-      toast.error('Failed to load streaks')
+      // Don't show error toast if gamification is disabled or tables don't exist
+      if (error.code !== 'PGRST116' && error.code !== '42P01' && !error.message?.includes('relation') && !error.message?.includes('permission')) {
+        toast.error('Failed to load streaks')
+      }
+      setStreaks([])
     } finally {
       setLoading(false)
     }
