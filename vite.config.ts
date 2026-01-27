@@ -37,6 +37,13 @@ export default defineConfig(({ mode }) => {
             'ui-vendor': ['lucide-react', 'react-hot-toast'],
           },
         },
+        onwarn(warning, warn) {
+          // Suppress certain warnings that don't affect functionality
+          if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return
+          if (warning.code === 'SOURCEMAP_ERROR') return
+          if (warning.code === 'THIS_IS_UNDEFINED') return
+          warn(warning)
+        }
       },
       // Chunk size warnings
       chunkSizeWarningLimit: 1000,
@@ -46,10 +53,14 @@ export default defineConfig(({ mode }) => {
       cssCodeSplit: true,
       // Build target
       target: 'es2015',
+      // Continue build even with warnings
+      emptyOutDir: true,
     },
     // Optimize dependencies
     optimizeDeps: {
       include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js'],
     },
+    // Suppress certain warnings in production
+    logLevel: isProduction ? 'error' : 'info',
   }
 })
