@@ -13,23 +13,26 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const location = useLocation()
 
   // Show loading spinner while checking authentication (but with timeout)
-  if (loading) {
-    // Don't wait forever - show loading for max 3 seconds
-    const [showLoading, setShowLoading] = useState(true)
-    useEffect(() => {
+  const [showLoading, setShowLoading] = useState(true)
+  
+  useEffect(() => {
+    if (!loading) {
+      setShowLoading(false)
+    } else {
+      // Don't wait forever - show loading for max 2 seconds
       const timer = setTimeout(() => {
         setShowLoading(false)
-      }, 3000)
+      }, 2000)
       return () => clearTimeout(timer)
-    }, [])
-    
-    if (showLoading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <LoadingSpinner size="lg" />
-        </div>
-      )
     }
+  }, [loading])
+  
+  if (loading && showLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   // If not authenticated (no user), redirect to login
