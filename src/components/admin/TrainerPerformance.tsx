@@ -27,22 +27,27 @@ const TrainerPerformance = () => {
   const [showTrainerModal, setShowTrainerModal] = useState(false)
   const itemsPerPage = 20
 
+  const [error, setError] = useState<string | null>(null)
+
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
+        setError(null)
         const data = await fetchAllTrainersWithStats(dateRange)
-        setTrainers(data)
+        setTrainers(data || [])
       } catch (error: any) {
         console.error('Error loading trainer data:', error)
-        toast.error('Failed to load trainer performance data')
+        const errorMessage = error?.message || 'Failed to load trainer performance data'
+        setError(errorMessage)
+        toast.error(errorMessage)
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [dateRange])
+  }, [dateRange]) // Refetches when dateRange changes or component remounts
 
   // Get unique teams for filter
   const teams = useMemo(() => {
@@ -181,6 +186,39 @@ const TrainerPerformance = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <LoadingSpinner size="lg" text="Loading trainer performance data..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-red-600 mb-4">
+          <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Data</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setError(null)
+            setLoading(true)
+            const loadData = async () => {
+              try {
+                const data = await fetchAllTrainersWithStats(dateRange)
+                setTrainers(data || [])
+                setError(null)
+              } catch (err: any) {
+                setError(err?.message || 'Failed to load data')
+              } finally {
+                setLoading(false)
+              }
+            }
+            loadData()
+          }}
+          className="btn-primary"
+        >
+          Retry
+        </button>
       </div>
     )
   }

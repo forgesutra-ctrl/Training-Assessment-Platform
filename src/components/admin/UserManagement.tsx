@@ -70,9 +70,12 @@ const UserManagement = () => {
     loadData()
   }, [roleFilter, teamFilter, statusFilter])
 
+  const [error, setError] = useState<string | null>(null)
+
   const loadData = async () => {
     try {
       setLoading(true)
+      setError(null)
       const [usersData, statsData, teamsData] = await Promise.all([
         fetchAllUsers({
           role: roleFilter,
@@ -84,12 +87,20 @@ const UserManagement = () => {
         supabase.from('teams').select('id, team_name').order('team_name'),
       ])
 
-      setUsers(usersData)
-      setStats(statsData)
+      setUsers(usersData || [])
+      setStats(statsData || {
+        totalUsers: 0,
+        totalManagers: 0,
+        totalTrainers: 0,
+        totalAdmins: 0,
+        activeUsersThisMonth: 0,
+      })
       setTeams(teamsData.data || [])
     } catch (error: any) {
       console.error('Error loading users:', error)
-      toast.error('Failed to load users')
+      const errorMessage = error?.message || 'Failed to load users'
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -239,6 +250,35 @@ const UserManagement = () => {
             handleEdit(user)
           }
         }} />
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <LoadingSpinner size="lg" text="Loading users..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-red-600 mb-4">
+          <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Users</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setError(null)
+            loadData()
+          }}
+          className="btn-primary"
+        >
+          Retry
+        </button>
       </div>
     )
   }

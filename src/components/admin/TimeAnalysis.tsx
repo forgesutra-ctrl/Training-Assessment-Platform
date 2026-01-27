@@ -19,6 +19,7 @@ import {
 
 const TimeAnalysis = () => {
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [monthlyTrends, setMonthlyTrends] = useState<MonthlyTrend[]>([])
   const [quarterlyData, setQuarterlyData] = useState<QuarterlyData[]>([])
 
@@ -26,22 +27,25 @@ const TimeAnalysis = () => {
     const loadData = async () => {
       try {
         setLoading(true)
+        setError(null)
         const [trends, quarters] = await Promise.all([
           fetchMonthlyTrends(12),
           fetchQuarterlyData(),
         ])
-        setMonthlyTrends(trends)
-        setQuarterlyData(quarters)
+        setMonthlyTrends(trends || [])
+        setQuarterlyData(quarters || [])
       } catch (error: any) {
         console.error('Error loading time analysis data:', error)
-        toast.error('Failed to load time analysis data')
+        const errorMessage = error?.message || 'Failed to load time analysis data'
+        setError(errorMessage)
+        toast.error(errorMessage)
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [])
+  }, []) // Component remounts when tab switches due to key prop
 
   // Calculate month-over-month changes
   const getMonthChange = (index: number) => {

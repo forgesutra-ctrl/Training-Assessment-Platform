@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Sliders, TrendingUp, Calculator, RefreshCw } from 'lucide-react'
 import { fetchAllTrainersWithStats, fetchMonthlyTrends } from '@/utils/adminQueries'
+import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
@@ -30,16 +31,26 @@ const ScenarioModeling = () => {
     loadHistoricalData()
   }, [])
 
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
   const loadHistoricalData = async () => {
     try {
+      setLoading(true)
+      setError(null)
       const trends = await fetchMonthlyTrends(12)
       setHistoricalData(trends.map((t) => ({
         month: t.month,
         current: t.average_rating,
         projected: t.average_rating, // Will be updated when scenario is created
       })))
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading historical data:', error)
+      const errorMessage = error?.message || 'Failed to load historical data'
+      setError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -95,6 +106,35 @@ const ScenarioModeling = () => {
       setCurrentScenario(updated)
       toast.success('Recalculated')
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <LoadingSpinner size="lg" text="Loading scenario modeling..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-red-600 mb-4">
+          <Sliders className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Data</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setError(null)
+            loadHistoricalData()
+          }}
+          className="btn-primary"
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
   return (

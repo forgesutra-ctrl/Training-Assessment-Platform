@@ -28,9 +28,12 @@ const AuditLog = () => {
     loadLogs()
   }, [currentPage, filters])
 
+  const [error, setError] = useState<string | null>(null)
+
   const loadLogs = async () => {
     try {
       setLoading(true)
+      setError(null)
       const offset = (currentPage - 1) * itemsPerPage
       const result = await fetchAuditLogs({
         startDate: filters.startDate || undefined,
@@ -39,11 +42,13 @@ const AuditLog = () => {
         userId: filters.userId || undefined,
         targetType: filters.targetType,
       }, itemsPerPage, offset)
-      setLogs(result.logs)
-      setTotal(result.total)
+      setLogs(result.logs || [])
+      setTotal(result.total || 0)
     } catch (error: any) {
       console.error('Error loading audit logs:', error)
-      toast.error('Failed to load audit logs')
+      const errorMessage = error?.message || 'Failed to load audit logs'
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }

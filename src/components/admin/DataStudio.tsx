@@ -47,21 +47,26 @@ const DataStudio = () => {
     loadAvailableData()
   }, [])
 
+  const [error, setError] = useState<string | null>(null)
+
   const loadAvailableData = async () => {
     try {
       setLoading(true)
+      setError(null)
       const [trainers, trends] = await Promise.all([
         fetchAllTrainersWithStats('all-time'),
         fetchMonthlyTrends(12),
       ])
 
       setAvailableData({
-        trainers,
-        monthlyTrends: trends,
+        trainers: trainers || [],
+        monthlyTrends: trends || [],
       })
     } catch (error: any) {
       console.error('Error loading data:', error)
-      toast.error('Failed to load data')
+      const errorMessage = error?.message || 'Failed to load data'
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -289,6 +294,27 @@ const DataStudio = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <LoadingSpinner size="lg" text="Loading data studio..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-red-600 mb-4">
+          <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Data Studio</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setError(null)
+            loadAvailableData()
+          }}
+          className="btn-primary"
+        >
+          Retry
+        </button>
       </div>
     )
   }

@@ -8,6 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const ManagerActivity = () => {
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [managers, setManagers] = useState<ManagerActivityType[]>([])
   const [matrix, setMatrix] = useState<CrossAssessmentMatrix[]>([])
   const [selectedManager, setSelectedManager] = useState<ManagerActivityType | null>(null)
@@ -16,22 +17,25 @@ const ManagerActivity = () => {
     const loadData = async () => {
       try {
         setLoading(true)
+        setError(null)
         const [managerData, matrixData] = await Promise.all([
           fetchManagerActivity(),
           getCrossAssessmentMatrix(),
         ])
-        setManagers(managerData)
-        setMatrix(matrixData)
+        setManagers(managerData || [])
+        setMatrix(matrixData || [])
       } catch (error: any) {
         console.error('Error loading manager activity:', error)
-        toast.error('Failed to load manager activity data')
+        const errorMessage = error?.message || 'Failed to load manager activity data'
+        setError(errorMessage)
+        toast.error(errorMessage)
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [])
+  }, []) // Component remounts when tab switches due to key prop
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never'

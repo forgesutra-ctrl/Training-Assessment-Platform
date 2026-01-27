@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 
 const OverviewTab = () => {
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([])
   const [monthlyTrends, setMonthlyTrends] = useState<MonthlyTrend[]>([])
@@ -18,24 +19,27 @@ const OverviewTab = () => {
     const loadData = async () => {
       try {
         setLoading(true)
+        setError(null)
         const [activity, performers, trends] = await Promise.all([
           fetchRecentActivity(20),
           getTopPerformers(5, 'month'),
           fetchMonthlyTrends(12),
         ])
-        setRecentActivity(activity)
-        setTopPerformers(performers)
-        setMonthlyTrends(trends)
+        setRecentActivity(activity || [])
+        setTopPerformers(performers || [])
+        setMonthlyTrends(trends || [])
       } catch (error: any) {
         console.error('Error loading overview data:', error)
-        toast.error('Failed to load overview data')
+        const errorMessage = error?.message || 'Failed to load overview data'
+        setError(errorMessage)
+        toast.error(errorMessage)
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [])
+  }, []) // Component remounts when tab switches due to key prop
 
   const getTimeAgo = (dateString: string) => {
     const date = new Date(dateString)
@@ -71,6 +75,24 @@ const OverviewTab = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <LoadingSpinner size="lg" text="Loading overview data..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-red-600 mb-4">
+          <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Data</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="btn-primary"
+        >
+          Retry
+        </button>
       </div>
     )
   }

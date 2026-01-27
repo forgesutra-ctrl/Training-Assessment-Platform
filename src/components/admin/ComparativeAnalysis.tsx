@@ -19,9 +19,12 @@ const ComparativeAnalysis = () => {
     }
   }, [comparisonType, period1, period2])
 
+  const [error, setError] = useState<string | null>(null)
+
   const loadPeriodComparison = async () => {
     try {
       setLoading(true)
+      setError(null)
       // Fetch data for both periods
       const [data1, data2] = await Promise.all([
         fetchPeriodData(period1),
@@ -35,7 +38,9 @@ const ComparativeAnalysis = () => {
       })
     } catch (error: any) {
       console.error('Error loading comparison:', error)
-      toast.error('Failed to load comparison data')
+      const errorMessage = error?.message || 'Failed to load comparison data'
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }

@@ -16,18 +16,24 @@ const CorrelationAnalysis = () => {
     loadCorrelationData()
   }, [])
 
+  const [error, setError] = useState<string | null>(null)
+
   const loadCorrelationData = async () => {
     try {
       setLoading(true)
+      setError(null)
       
       // Fetch assessments
-      const { data: assessments } = await supabase
+      const { data: assessments, error: fetchError } = await supabase
         .from('assessments')
         .select('*')
         .order('assessment_date', { ascending: false })
         .limit(500)
 
+      if (fetchError) throw fetchError
+
       if (!assessments || assessments.length === 0) {
+        setError('No assessment data available for correlation analysis')
         toast.error('No assessment data available for correlation analysis')
         return
       }
@@ -46,7 +52,9 @@ const CorrelationAnalysis = () => {
       setInsights(correlationInsights)
     } catch (error: any) {
       console.error('Error loading correlation data:', error)
-      toast.error('Failed to load correlation analysis')
+      const errorMessage = error?.message || 'Failed to load correlation analysis'
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }

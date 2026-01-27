@@ -16,11 +16,14 @@ const PredictiveAnalytics = () => {
     loadData()
   }, [])
 
+  const [error, setError] = useState<string | null>(null)
+
   const loadData = async () => {
     try {
       setLoading(true)
+      setError(null)
       const data = await fetchAllTrainersWithStats('all-time')
-      setTrainers(data)
+      setTrainers(data || [])
 
       // Identify at-risk trainers (likely to score <3 next month)
       const atRisk = data.filter((t) => {
@@ -70,6 +73,27 @@ const PredictiveAnalytics = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <LoadingSpinner size="lg" text="Loading predictive analytics..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-red-600 mb-4">
+          <TrendingUp className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Data</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setError(null)
+            loadData()
+          }}
+          className="btn-primary"
+        >
+          Retry
+        </button>
       </div>
     )
   }

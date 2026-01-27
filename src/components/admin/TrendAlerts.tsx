@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 
 const TrendAlerts = () => {
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [alerts, setAlerts] = useState<TrendAlert[]>([])
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
 
@@ -18,6 +19,7 @@ const TrendAlerts = () => {
   const loadAlerts = async () => {
     try {
       setLoading(true)
+      setError(null)
       const allAlerts: TrendAlert[] = []
 
       // Load trainer assessments and detect trends
@@ -108,6 +110,27 @@ const TrendAlerts = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <LoadingSpinner size="lg" text="Analyzing trends..." />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="card text-center py-12">
+        <div className="text-red-600 mb-4">
+          <AlertTriangle className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Trend Alerts</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setError(null)
+            loadAlerts()
+          }}
+          className="btn-primary"
+        >
+          Retry
+        </button>
       </div>
     )
   }
