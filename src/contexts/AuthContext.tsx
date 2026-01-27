@@ -38,6 +38,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Fetch user profile from profiles table
   const fetchProfile = async (userId: string, autoCreate: boolean = true): Promise<Profile | null> => {
     try {
+      // Ensure we have a valid session before querying
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      if (!currentSession) {
+        console.warn('⚠️ No active session when fetching profile')
+        return null
+      }
+      
+      console.log('🔍 Fetching profile with session:', {
+        userId: userId,
+        sessionUserId: currentSession.user.id,
+        match: userId === currentSession.user.id,
+      })
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
