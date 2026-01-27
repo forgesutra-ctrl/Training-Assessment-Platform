@@ -62,23 +62,3 @@ export const supabase: SupabaseClient = (() => {
 
   return supabaseInstance
 })()
-
-/**
- * Helper function to safely query by IDs
- * Uses .eq() for single ID, .in() for multiple IDs
- */
-export const queryByIds = <T>(
-  query: any,
-  column: string,
-  ids: string[]
-): Promise<{ data: T[] | null; error: any }> => {
-  if (ids.length === 0) {
-    return Promise.resolve({ data: [], error: null })
-  }
-  
-  if (ids.length === 1) {
-    return query.eq(column, ids[0])
-  }
-  
-  return query.in(column, ids)
-}
