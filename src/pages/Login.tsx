@@ -55,8 +55,8 @@ const Login = () => {
       // Navigate immediately based on email - don't wait for profile or useEffect
       // Infer role from email
       let defaultRole = 'admin'
-      if (email.includes('manager')) defaultRole = 'manager'
-      if (email.includes('trainer')) defaultRole = 'trainer'
+      if (email.toLowerCase().includes('manager')) defaultRole = 'manager'
+      if (email.toLowerCase().includes('trainer')) defaultRole = 'trainer'
       
       const roleRoutes: Record<string, string> = {
         admin: '/admin/dashboard',
@@ -65,10 +65,11 @@ const Login = () => {
       }
       const redirectTo = roleRoutes[defaultRole] || '/admin/dashboard'
       
-      // Navigate after a brief delay to ensure auth state is updated
+      // Navigate immediately - don't wait
+      // Use window.location for more reliable navigation in production
       setTimeout(() => {
-        navigate(redirectTo, { replace: true })
-      }, 800)
+        window.location.href = redirectTo
+      }, 300)
     } else if (result?.error) {
       setError(result.error)
       setLoginSuccess(false)
