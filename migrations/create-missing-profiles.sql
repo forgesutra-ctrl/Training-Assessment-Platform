@@ -6,8 +6,8 @@
 SELECT 
   au.id,
   au.email,
-  au.user_metadata->>'full_name' as full_name,
-  au.user_metadata->>'role' as role,
+  au.raw_user_meta_data->>'full_name' as full_name,
+  au.raw_user_meta_data->>'role' as role,
   CASE WHEN p.id IS NULL THEN 'MISSING PROFILE' ELSE 'HAS PROFILE' END as status
 FROM auth.users au
 LEFT JOIN profiles p ON au.id = p.id
@@ -19,11 +19,11 @@ INSERT INTO profiles (id, full_name, role, team_id, reporting_manager_id)
 SELECT 
   au.id,
   COALESCE(
-    au.user_metadata->>'full_name',
-    SPLIT_PART(au.email, '@', 1)
+    au.raw_user_meta_data->>'full_name',
+    INITCAP(REPLACE(SPLIT_PART(au.email, '@', 1), '.', ' '))
   ) as full_name,
   COALESCE(
-    au.user_metadata->>'role',
+    au.raw_user_meta_data->>'role',
     'trainer'  -- Default role
   )::text as role,
   NULL as team_id,

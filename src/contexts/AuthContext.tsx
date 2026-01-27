@@ -59,7 +59,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           const { data: authData } = await supabase.auth.getUser()
           if (authData?.user) {
             const email = authData.user.email || ''
-            const fullName = authData.user.user_metadata?.full_name || email.split('@')[0]
+            // Try both user_metadata and raw_user_meta_data
+            const fullName = authData.user.user_metadata?.full_name || 
+                           authData.user.user_metadata?.fullName ||
+                           email.split('@')[0].replace(/\./g, ' ')
             const role = authData.user.user_metadata?.role || 'trainer'
             
             // Try to create profile

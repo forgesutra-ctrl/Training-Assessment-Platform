@@ -18,11 +18,11 @@ INSERT INTO profiles (id, full_name, role, team_id, reporting_manager_id)
 SELECT 
   au.id,
   COALESCE(
-    au.user_metadata->>'full_name',
+    au.raw_user_meta_data->>'full_name',
     INITCAP(REPLACE(SPLIT_PART(au.email, '@', 1), '.', ' '))
   ) as full_name,
   COALESCE(
-    au.user_metadata->>'role',
+    au.raw_user_meta_data->>'role',
     'trainer'
   )::text as role,
   NULL as team_id,
