@@ -210,7 +210,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const clearStaleAuth = async () => {
     try {
       // Check if we have a stored session
-      const storedSession = localStorage.getItem('sb-auth-token')
+      // Use sessionStorage instead of localStorage
+      const storedSession = typeof window !== 'undefined' ? window.sessionStorage.getItem('sb-auth-token') : null
       if (!storedSession) {
         // Even if no stored session, clear any other Supabase-related keys
         const keysToRemove: string[] = []
@@ -258,16 +259,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.log('🧹 Clearing stale authentication data (error or no session)')
         // Clear Supabase auth storage
         await supabase.auth.signOut().catch(() => {})
-        // Also clear localStorage items that might be stale
-        const keysToRemove: string[] = []
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
-            keysToRemove.push(key)
+        // Also clear sessionStorage items that might be stale
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          const keysToRemove: string[] = []
+          for (let i = 0; i < window.sessionStorage.length; i++) {
+            const key = window.sessionStorage.key(i)
+            if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+              keysToRemove.push(key)
+            }
           }
+          keysToRemove.forEach(key => window.sessionStorage.removeItem(key))
+          console.log('✅ Cleared stale auth data from sessionStorage')
         }
-        keysToRemove.forEach(key => localStorage.removeItem(key))
-        console.log('✅ Cleared stale auth data')
       } else if (session) {
         // Check if token is expired
         const expiresAt = session.expires_at
@@ -277,14 +280,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           if (expiresIn < 60) {
             console.log('🧹 Token expired, clearing stale data')
             await supabase.auth.signOut().catch(() => {})
-            const keysToRemove: string[] = []
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i)
-              if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
-                keysToRemove.push(key)
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+              const keysToRemove: string[] = []
+              for (let i = 0; i < window.sessionStorage.length; i++) {
+                const key = window.sessionStorage.key(i)
+                if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+                  keysToRemove.push(key)
+                }
               }
+              keysToRemove.forEach(key => window.sessionStorage.removeItem(key))
             }
-            keysToRemove.forEach(key => localStorage.removeItem(key))
           }
         }
       }
@@ -296,16 +301,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       } catch {
         // Ignore signOut errors
       }
-      // Clear all Supabase-related localStorage items
-      const keysToRemove: string[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
-          keysToRemove.push(key)
+      // Clear all Supabase-related sessionStorage items
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const keysToRemove: string[] = []
+        for (let i = 0; i < window.sessionStorage.length; i++) {
+          const key = window.sessionStorage.key(i)
+          if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+            keysToRemove.push(key)
+          }
         }
+        keysToRemove.forEach(key => window.sessionStorage.removeItem(key))
+        console.log('✅ Force-cleared all Supabase auth data from sessionStorage')
       }
-      keysToRemove.forEach(key => localStorage.removeItem(key))
-      console.log('✅ Force-cleared all Supabase auth data')
     }
   }
 

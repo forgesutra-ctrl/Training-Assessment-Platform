@@ -48,12 +48,38 @@ export const supabase: SupabaseClient = (() => {
     return supabaseInstance
   }
 
+  // Use sessionStorage instead of localStorage to prevent persistent cache issues
+  // sessionStorage clears when browser closes, preventing stale auth data
+  const customStorage = typeof window !== 'undefined' ? {
+    getItem: (key: string) => {
+      try {
+        return window.sessionStorage.getItem(key)
+      } catch (e) {
+        return null
+      }
+    },
+    setItem: (key: string, value: string) => {
+      try {
+        window.sessionStorage.setItem(key, value)
+      } catch (e) {
+        // Ignore quota errors
+      }
+    },
+    removeItem: (key: string) => {
+      try {
+        window.sessionStorage.removeItem(key)
+      } catch (e) {
+        // Ignore errors
+      }
+    },
+  } : undefined
+
   supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      storage: customStorage,
       storageKey: 'sb-auth-token',
       // Don't block on refresh token errors - allow login to proceed
       flowType: 'pkce',

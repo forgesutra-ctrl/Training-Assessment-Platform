@@ -20,14 +20,18 @@
     {
       "src": "/index.html",
       "headers": {
-        "cache-control": "no-cache, no-store, must-revalidate"
+        "cache-control": "no-cache, no-store, must-revalidate, max-age=0",
+        "pragma": "no-cache",
+        "expires": "0"
       }
     },
     {
       "src": "/(.*)",
       "dest": "/index.html",
       "headers": {
-        "cache-control": "no-cache, no-store, must-revalidate"
+        "cache-control": "no-cache, no-store, must-revalidate, max-age=0",
+        "pragma": "no-cache",
+        "expires": "0"
       }
     }
   ]

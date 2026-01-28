@@ -266,7 +266,126 @@ const TrainerDashboard = () => {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <TrainerSmartDashboard />
+          <div className="space-y-6">
+            {/* Smart Dashboard Summary */}
+            <TrainerSmartDashboard />
+            
+            {/* Assessment History - Show actual assessment details */}
+            {assessments.length > 0 && (
+              <div className="card">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Assessment History</h3>
+                  <span className="text-sm text-gray-600">
+                    {filteredAssessments.length} assessment{filteredAssessments.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {filteredAssessments.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-600 mb-2">No assessments for selected period</p>
+                    <p className="text-sm text-gray-500">
+                      Change the date range filter to see assessments.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Date
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Assessed By
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Overall Score
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {paginatedAssessments.map((assessment) => (
+                            <tr key={assessment.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center text-sm text-gray-900">
+                                  <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                                  {formatDate(assessment.assessment_date)}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {assessment.assessor_name}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <span className={`text-lg font-semibold ${getScoreColor(assessment.average_score)}`}>
+                                    {assessment.average_score.toFixed(2)}
+                                  </span>
+                                  <span className="text-gray-500 ml-1">/ 5.00</span>
+                                  <div className="ml-3 flex items-center gap-1">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <Star
+                                        key={star}
+                                        className={`w-4 h-4 ${
+                                          star <= Math.round(assessment.average_score)
+                                            ? 'fill-yellow-400 text-yellow-400'
+                                            : 'fill-gray-200 text-gray-200'
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button
+                                  onClick={() => setSelectedAssessment(assessment)}
+                                  className="text-primary-600 hover:text-primary-900 flex items-center gap-1 ml-auto"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  View Feedback
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4">
+                        <div className="text-sm text-gray-600">
+                          Page {currentPage} of {totalPages}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <ChevronLeft className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <ChevronRight className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Legacy Overview Content - Hidden but kept for reference */}

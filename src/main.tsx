@@ -25,20 +25,20 @@ window.addEventListener('unhandledrejection', (event) => {
       reason?.message?.includes('Invalid Refresh Token') ||
       reason?.message?.includes('Token Not Found')) {
     event.preventDefault()
-    // Clear stale auth data when token errors occur
-    if (typeof window !== 'undefined' && window.localStorage) {
+    // Clear stale auth data when token errors occur (use sessionStorage)
+    if (typeof window !== 'undefined' && window.sessionStorage) {
       try {
         const keysToRemove: string[] = []
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
+        for (let i = 0; i < window.sessionStorage.length; i++) {
+          const key = window.sessionStorage.key(i)
           if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
             keysToRemove.push(key)
           }
         }
-        keysToRemove.forEach(key => localStorage.removeItem(key))
-        console.log('🧹 Cleared stale auth tokens from localStorage')
+        keysToRemove.forEach(key => window.sessionStorage.removeItem(key))
+        console.log('🧹 Cleared stale auth tokens from sessionStorage')
       } catch (e) {
-        // Ignore localStorage errors
+        // Ignore sessionStorage errors
       }
     }
     return
