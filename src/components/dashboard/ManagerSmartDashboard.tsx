@@ -27,17 +27,25 @@ const ManagerSmartDashboard = () => {
   const [upcomingAssessments, setUpcomingAssessments] = useState<any[]>([])
 
   useEffect(() => {
-    if (user && profile) {
+    // Don't wait for profile - load data as soon as we have user
+    if (user) {
       loadDashboardData()
+    } else {
+      setLoading(false)
     }
   }, [user, profile])
 
   const loadDashboardData = async () => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       
       // Load recommendations
-      const recs = await getManagerRecommendations(user!.id)
+      const recs = await getManagerRecommendations(user.id)
       setRecommendations(recs)
 
       // Load suggested trainers
@@ -213,7 +221,7 @@ const ManagerSmartDashboard = () => {
       {/* Header with Refresh */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Welcome back, {profile?.full_name}!</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Welcome back, {profile?.full_name || user?.email || 'Manager'}!</h2>
           <p className="text-sm text-gray-600 mt-1">Here's what needs your attention today</p>
         </div>
         <DataRefresh onRefresh={loadDashboardData} autoRefreshInterval={30} />
