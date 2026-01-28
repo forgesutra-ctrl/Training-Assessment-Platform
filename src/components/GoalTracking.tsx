@@ -104,6 +104,9 @@ const GoalTracking = () => {
       })
       await loadGoals()
     } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoalTracking.tsx:97',message:'Error creating goal',data:{errorName:error?.name,errorMessage:error?.message,errorCode:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
       console.error('Error creating goal:', error)
       toast.error(error.message || 'Failed to create goal')
     } finally {
@@ -342,9 +345,15 @@ const GoalTracking = () => {
                   <textarea
                     value={newGoal.description || ''}
                     onChange={(e) => {
+                      // #region agent log
+                      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoalTracking.tsx:333',message:'Textarea onChange',data:{valueLength:e.target.value.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+                      // #endregion
                       try {
                         setNewGoal({ ...newGoal, description: e.target.value })
                       } catch (error) {
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoalTracking.tsx:338',message:'Textarea onChange error',data:{error:error?.toString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+                        // #endregion
                         console.error('Error updating description:', error)
                         // Prevent crash by catching error
                       }

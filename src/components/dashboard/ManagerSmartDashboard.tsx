@@ -27,6 +27,9 @@ const ManagerSmartDashboard = () => {
   const [upcomingAssessments, setUpcomingAssessments] = useState<any[]>([])
 
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:29',message:'useEffect triggered',data:{hasUser:!!user,hasProfile:!!profile,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     // Don't wait for profile - load data as soon as we have user
     if (user) {
       loadDashboardData()
@@ -53,7 +56,10 @@ const ManagerSmartDashboard = () => {
 
       // Load upcoming assessments (calendar)
       await loadUpcomingAssessments()
-    } catch (error) {
+    } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:48',message:'Error loading dashboard',data:{errorName:error?.name,errorMessage:error?.message,errorCode:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
       console.error('Error loading dashboard:', error)
       toast.error('Failed to load dashboard data')
     } finally {

@@ -63,6 +63,9 @@ const TrainerDashboard = () => {
 
   useEffect(() => {
     const loadData = async () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'TrainerDashboard.tsx:64',message:'loadData called',data:{hasUser:!!user,hasProfile:!!profile,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       if (!user || !profile) {
         setLoading(false)
         return
@@ -70,10 +73,16 @@ const TrainerDashboard = () => {
 
       try {
         setLoading(true)
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'TrainerDashboard.tsx:72',message:'Before Promise.all',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         const [assessmentsData, lastDate] = await Promise.all([
           fetchTrainerAssessments(user.id),
           getLastAssessmentDate(user.id),
         ])
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'TrainerDashboard.tsx:78',message:'After Promise.all',data:{assessmentsCount:assessmentsData?.length,hasLastDate:!!lastDate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
 
         setAssessments(assessmentsData)
         setLastAssessmentDate(lastDate)
@@ -100,6 +109,9 @@ const TrainerDashboard = () => {
           notificationService.addNotification(alert)
         }
       } catch (error: any) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'TrainerDashboard.tsx:102',message:'Error loading trainer data',data:{errorName:error?.name,errorMessage:error?.message,errorCode:error?.code,errorStatus:error?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
         console.error('Error loading trainer data:', error)
         toast.error('Failed to load assessment data')
       } finally {
