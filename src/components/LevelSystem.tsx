@@ -27,24 +27,36 @@ const LevelSystem = () => {
 
     try {
       setLoading(true)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LevelSystem.tsx:30',message:'Before fetchUserXP and fetchXPHistory',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       const [xp, history] = await Promise.all([
         fetchUserXP(user.id).catch((error: any) => {
-          // If table doesn't exist or RLS blocks access, return null
-          if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LevelSystem.tsx:33',message:'fetchUserXP error caught',data:{errorCode:error?.code,errorStatus:error?.status,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          // If table doesn't exist, RLS blocks access, or 403/406 errors, return null
+          if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
             console.warn('XP table not accessible or not found:', error.message)
             return null
           }
           throw error
         }),
         fetchXPHistory(user.id, 10).catch((error: any) => {
-          // If table doesn't exist or RLS blocks access, return empty array
-          if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LevelSystem.tsx:42',message:'fetchXPHistory error caught',data:{errorCode:error?.code,errorStatus:error?.status,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          // If table doesn't exist, RLS blocks access, or 403/406 errors, return empty array
+          if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
             console.warn('XP history table not accessible or not found:', error.message)
             return []
           }
           throw error
         }),
       ])
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LevelSystem.tsx:50',message:'After fetchUserXP and fetchXPHistory',data:{hasXp:!!xp,hasHistory:!!history,historyLength:history?.length,xpTotalXp:xp?.total_xp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       setXPData(xp)
       setXPHistory(history || [])
 
@@ -117,7 +129,7 @@ const LevelSystem = () => {
             </div>
           </div>
           <div className="bg-white/20 rounded-lg p-4 mb-4">
-            <div className="text-3xl font-bold mb-1">{xpData.total_xp.toLocaleString()}</div>
+            <div className="text-3xl font-bold mb-1">{(xpData.total_xp || 0).toLocaleString()}</div>
             <div className="text-sm opacity-90">Total XP</div>
           </div>
           {xpData.current_level < 6 && (
@@ -125,7 +137,7 @@ const LevelSystem = () => {
               <div className="flex items-center justify-between text-sm mb-2">
                 <span>Progress to Level {xpData.current_level + 1}</span>
                 <span className="font-bold">
-                  {xpData.level_xp} / {xpData.xp_for_next_level} XP
+                  {xpData.level_xp || 0} / {xpData.xp_for_next_level || 0} XP
                 </span>
               </div>
               <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
@@ -134,9 +146,9 @@ const LevelSystem = () => {
                   style={{ width: `${xpData.progress_to_next_level}%` }}
                 />
               </div>
-              <div className="text-xs mt-2 opacity-90">
-                {xpData.xp_for_next_level - xpData.level_xp} XP needed for next level
-              </div>
+                <div className="text-xs mt-2 opacity-90">
+                  {((xpData.xp_for_next_level || 0) - (xpData.level_xp || 0))} XP needed for next level
+                </div>
             </div>
           )}
         </div>
@@ -213,7 +225,7 @@ const LevelSystem = () => {
                         {isCurrent && <span className="ml-2 text-primary-600">(Current)</span>}
                       </div>
                       <div className="text-sm text-gray-600">
-                        {level === 1 ? '0' : levelXP[level - 1].toLocaleString()} - {level === 6 ? '∞' : levelXP[level].toLocaleString()} XP
+                        {level === 1 ? '0' : (levelXP[level - 1] || 0).toLocaleString()} - {level === 6 ? '∞' : (levelXP[level] || 0).toLocaleString()} XP
                       </div>
                     </div>
                   </div>

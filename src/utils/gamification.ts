@@ -396,8 +396,8 @@ export const fetchUserStreaks = async (userId: string): Promise<Streak[]> => {
     const { data, error } = await supabase.from('streaks').select('*').eq('user_id', userId)
 
     if (error) {
-      // Table doesn't exist or RLS blocks access
-      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      // Table doesn't exist, RLS blocks access, or 403/406 errors
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
         console.warn('Streaks table not accessible:', error.message)
         return []
       }
@@ -405,7 +405,7 @@ export const fetchUserStreaks = async (userId: string): Promise<Streak[]> => {
     }
     return data || []
   } catch (error: any) {
-    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
       console.warn('Streaks table not accessible:', error.message)
       return []
     }
@@ -518,8 +518,8 @@ export const getLeaderboardPreference = async (userId: string): Promise<Leaderbo
       .single()
 
     if (error) {
-      // Table doesn't exist, RLS blocks access, or record not found
-      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      // Table doesn't exist, RLS blocks access, 403/406 errors, or record not found
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
         console.warn('Leaderboard preferences table not accessible:', error.message)
         return null
       }
@@ -528,7 +528,7 @@ export const getLeaderboardPreference = async (userId: string): Promise<Leaderbo
 
     return data
   } catch (error: any) {
-    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
       console.warn('Leaderboard preferences table not accessible:', error.message)
       return null
     }

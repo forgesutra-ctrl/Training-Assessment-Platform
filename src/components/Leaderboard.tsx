@@ -33,8 +33,8 @@ const Leaderboard = () => {
       setLoading(true)
       const [pref, trainers] = await Promise.all([
         getLeaderboardPreference(user.id).catch((error: any) => {
-          // If table doesn't exist or RLS blocks access, return null
-          if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+          // If table doesn't exist, RLS blocks access, or 403/406 errors, return null
+          if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
             console.warn('Leaderboard preferences table not accessible:', error.message)
             return null
           }
