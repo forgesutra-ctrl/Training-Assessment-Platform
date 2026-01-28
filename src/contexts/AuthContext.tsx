@@ -213,17 +213,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Use sessionStorage instead of localStorage
       const storedSession = typeof window !== 'undefined' ? window.sessionStorage.getItem('sb-auth-token') : null
       if (!storedSession) {
-        // Even if no stored session, clear any other Supabase-related keys
-        const keysToRemove: string[] = []
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
-            keysToRemove.push(key)
+        // Even if no stored session, clear any other Supabase-related keys from sessionStorage
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          const keysToRemove: string[] = []
+          for (let i = 0; i < window.sessionStorage.length; i++) {
+            const key = window.sessionStorage.key(i)
+            if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+              keysToRemove.push(key)
+            }
           }
-        }
-        if (keysToRemove.length > 0) {
-          keysToRemove.forEach(key => localStorage.removeItem(key))
-          console.log('🧹 Cleared orphaned Supabase keys')
+          if (keysToRemove.length > 0) {
+            keysToRemove.forEach(key => window.sessionStorage.removeItem(key))
+            console.log('🧹 Cleared orphaned Supabase keys from sessionStorage')
+          }
         }
         return
       }
@@ -241,14 +243,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // If session check times out, assume stale and clear
         console.log('🧹 Session check timeout, clearing stale data')
         await supabase.auth.signOut().catch(() => {})
-        const keysToRemove: string[] = []
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
-            keysToRemove.push(key)
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          const keysToRemove: string[] = []
+          for (let i = 0; i < window.sessionStorage.length; i++) {
+            const key = window.sessionStorage.key(i)
+            if (key && (key.startsWith('sb-') || key.startsWith('supabase.'))) {
+              keysToRemove.push(key)
+            }
           }
+          keysToRemove.forEach(key => window.sessionStorage.removeItem(key))
         }
-        keysToRemove.forEach(key => localStorage.removeItem(key))
         return
       }
       
@@ -294,7 +298,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
     } catch (error: any) {
-      // If clearing fails, force clear localStorage
+      // If clearing fails, force clear sessionStorage
       console.warn('⚠️ Error clearing stale auth, forcing clear:', error)
       try {
         await supabase.auth.signOut().catch(() => {})
