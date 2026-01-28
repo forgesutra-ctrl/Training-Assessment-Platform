@@ -208,8 +208,8 @@ export const fetchUserXP = async (userId: string): Promise<UserXP | null> => {
     const { data, error } = await supabase.from('user_xp').select('*').eq('user_id', userId).single()
 
     if (error) {
-      // Table doesn't exist or RLS blocks access
-      if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+      // Table doesn't exist, RLS blocks access, or 403/406 errors
+      if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
         console.warn('XP table not accessible:', error.message)
         return null
       }
@@ -218,19 +218,27 @@ export const fetchUserXP = async (userId: string): Promise<UserXP | null> => {
 
     if (!data) return null
 
+    // Ensure all required fields have default values
+    const currentLevel = data.current_level || 1
+    const totalXP = data.total_xp || 0
+    const levelXP = data.level_xp || 0
+
     // Calculate XP for next level
-    const xpForNext = getXPForNextLevel(data.current_level)
-    const xpInCurrentLevel = data.total_xp - getTotalXPForLevel(data.current_level - 1)
+    const xpForNext = getXPForNextLevel(currentLevel)
+    const xpInCurrentLevel = totalXP - getTotalXPForLevel(currentLevel - 1)
     const progress = xpForNext > 0 ? (xpInCurrentLevel / xpForNext) * 100 : 100
 
     return {
       ...data,
+      current_level: currentLevel,
+      total_xp: totalXP,
+      level_xp: levelXP,
       xp_for_next_level: xpForNext,
       progress_to_next_level: Math.min(100, Math.max(0, progress)),
     }
   } catch (error: any) {
     // Handle any unexpected errors gracefully
-    if (error.code === 'PGRST116' || error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('permission')) {
+    if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
       console.warn('XP table not accessible:', error.message)
       return null
     }
