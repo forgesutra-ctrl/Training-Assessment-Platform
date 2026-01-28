@@ -18,7 +18,11 @@ interface TrainerToAssess {
   lastAssessmentDate: string | null
 }
 
-const ManagerSmartDashboard = () => {
+interface ManagerSmartDashboardProps {
+  onViewAssessment?: (assessment: any) => void
+}
+
+const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps = {}) => {
   const { user, profile } = useAuthContext()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -304,7 +308,23 @@ const ManagerSmartDashboard = () => {
                         </p>
                       </div>
                       <button
-                        onClick={() => navigate('/manager/dashboard')}
+                        onClick={async () => {
+                          if (onViewAssessment) {
+                            // Fetch full assessment details
+                            try {
+                              const { fetchAssessmentDetails } = await import('@/utils/assessments')
+                              const fullAssessment = await fetchAssessmentDetails(assessment.id)
+                              if (fullAssessment) {
+                                onViewAssessment(fullAssessment)
+                              }
+                            } catch (error) {
+                              console.error('Error fetching assessment details:', error)
+                              toast.error('Failed to load assessment details')
+                            }
+                          } else {
+                            navigate('/manager/dashboard')
+                          }
+                        }}
                         className="text-primary-600 hover:text-primary-800 text-sm"
                       >
                         View

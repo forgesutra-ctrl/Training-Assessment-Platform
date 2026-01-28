@@ -106,6 +106,9 @@ const AssessmentForm = () => {
       }
 
       try {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssessmentForm.tsx:109',message:'Before fetching trainers',data:{hasProfile:!!profile,hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         // Fetch trainers first
         const { data: trainersData, error: trainersError } = await supabase
           .from('profiles')
@@ -113,7 +116,9 @@ const AssessmentForm = () => {
           .eq('role', 'trainer')
           .neq('reporting_manager_id', user.id)
           .order('full_name')
-
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssessmentForm.tsx:116',message:'After fetching trainers',data:{hasData:!!trainersData,trainersCount:trainersData?.length,hasError:!!trainersError,errorCode:trainersError?.code,errorStatus:trainersError?.status,errorMessage:trainersError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         if (trainersError) {
           console.error('Error fetching trainers:', trainersError)
           throw trainersError

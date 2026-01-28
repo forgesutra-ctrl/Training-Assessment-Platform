@@ -110,7 +110,7 @@ export const fetchManagerAssessments = async (
   // Fetch assessor profiles (only if we have assessor IDs)
   let assessorProfiles: any[] = []
   if (assessorIds.length > 0) {
-    let query = supabase.from('profiles').select('id, full_name, email')
+    let query = supabase.from('profiles').select('id, full_name')
     if (assessorIds.length === 1) {
       const { data, error } = await query.eq('id', assessorIds[0])
       if (error) {
