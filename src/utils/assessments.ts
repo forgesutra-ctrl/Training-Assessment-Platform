@@ -214,8 +214,8 @@ export const fetchAssessmentDetails = async (
 
   // Fetch trainer and assessor profiles separately
   const [trainerResult, assessorResult] = await Promise.all([
-    supabase.from('profiles').select('id, full_name, email').eq('id', assessment.trainer_id).single(),
-    supabase.from('profiles').select('id, full_name, email').eq('id', assessment.assessor_id).single(),
+    supabase.from('profiles').select('id, full_name').eq('id', assessment.trainer_id).single(),
+    supabase.from('profiles').select('id, full_name').eq('id', assessment.assessor_id).single(),
   ])
 
   const trainer = trainerResult.data
@@ -226,8 +226,8 @@ export const fetchAssessmentDetails = async (
 
   return {
     ...assessment,
-    trainer_name: trainer?.full_name || trainer?.email || 'Unknown Trainer',
-    assessor_name: assessor?.full_name || assessor?.email || 'Unknown Assessor',
+    trainer_name: trainer?.full_name || 'Unknown Trainer',
+    assessor_name: assessor?.full_name || 'Unknown Assessor',
     average_score: average,
   }
 }
