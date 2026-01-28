@@ -48,6 +48,9 @@ const Login = () => {
     const result = await signIn(email, password)
     setIsLoading(false)
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Login.tsx:51',message:'Login result received',data:{success:result?.success,hasError:!!result?.error,hasUser:!!user,hasProfile:!!profile},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
     if (result?.success) {
       setLoginSuccess(true)
       toast.success('Welcome back! 🎉')
@@ -64,18 +67,30 @@ const Login = () => {
         trainer: '/trainer/dashboard',
       }
       const redirectTo = roleRoutes[defaultRole] || '/admin/dashboard'
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Login.tsx:66',message:'Before navigation',data:{redirectTo,currentPath:window.location.pathname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
       
       // Navigate immediately - try React Router first, then window.location as backup
       // Use both approaches to ensure navigation happens
       try {
         navigate(redirectTo, { replace: true })
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Login.tsx:72',message:'Navigate called',data:{redirectTo},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
       } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Login.tsx:75',message:'Navigate failed, using window.location',data:{error:error?.toString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
         // If navigate fails, use window.location immediately
         window.location.href = redirectTo
       }
       
       // Aggressive fallback: if still on login page after 300ms, force navigation
       setTimeout(() => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Login.tsx:82',message:'Navigation timeout check',data:{currentPath:window.location.pathname,redirectTo},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
         if (window.location.pathname === '/login' || window.location.pathname === '/') {
           window.location.href = redirectTo
         }

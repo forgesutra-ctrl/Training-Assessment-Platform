@@ -79,10 +79,16 @@ export const fetchManagerAssessments = async (
 
   // Fetch trainer profiles (only if we have trainer IDs)
   let trainerProfiles: any[] = []
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assessments.ts:82',message:'Before trainer fetch',data:{trainerIdsCount:trainerIds.length,trainerIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   if (trainerIds.length > 0) {
     let query = supabase.from('profiles').select('id, full_name, email')
     if (trainerIds.length === 1) {
       const { data, error } = await query.eq('id', trainerIds[0])
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assessments.ts:86',message:'After trainer eq query',data:{hasData:!!data,hasError:!!error,errorStatus:error?.status,errorCode:error?.code,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       if (error) {
         console.error('Error fetching trainer profiles:', error)
       } else {
@@ -90,6 +96,9 @@ export const fetchManagerAssessments = async (
       }
     } else {
       const { data, error } = await query.in('id', trainerIds)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assessments.ts:93',message:'After trainer in query',data:{hasData:!!data,hasError:!!error,errorStatus:error?.status,errorCode:error?.code,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       if (error) {
         console.error('Error fetching trainer profiles:', error)
       } else {

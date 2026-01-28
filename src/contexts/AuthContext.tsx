@@ -37,9 +37,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Fetch user profile from profiles table
   const fetchProfile = async (userId: string, autoCreate: boolean = true): Promise<Profile | null> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:39',message:'fetchProfile called',data:{userId,autoCreate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     try {
       // Ensure we have a valid session before querying
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:42',message:'After getSession',data:{hasSession:!!currentSession,sessionUserId:currentSession?.user?.id,hasError:!!sessionError},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       
       if (sessionError) {
         console.error('❌ Error getting session:', sessionError)
@@ -71,11 +77,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // The RLS policy checks auth.uid() = id, so we must query with the session user's ID
       const profileUserId = currentSession.user.id
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:74',message:'Before profile query',data:{profileUserId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', profileUserId)  // Use session user ID, not the passed userId
         .single()
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:78',message:'After profile query',data:{hasData:!!data,hasError:!!error,errorCode:error?.code,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       if (error) {
         // Ignore AbortError
@@ -527,6 +539,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [])
 
   const signIn = async (email: string, password: string) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:529',message:'signIn called',data:{email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     try {
       setLoading(true)
       
@@ -545,10 +560,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { success: false, error: errorMsg }
       }
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:548',message:'Before signInWithPassword',data:{hasUrl:!!supabaseUrl,hasKey:!!supabaseAnonKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:552',message:'After signInWithPassword',data:{hasData:!!data,hasError:!!error,errorStatus:error?.status,errorMessage:error?.message,hasUser:!!data?.user,userId:data?.user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       if (error) {
         // Provide more helpful error messages

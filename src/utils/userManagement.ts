@@ -146,12 +146,17 @@ export const fetchAllUsers = async (filters?: {
   let teamMap = new Map<string, any>()
   let managerMap = new Map<string, any>()
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'userManagement.ts:149',message:'Before teams fetch',data:{teamIdsCount:teamIds.length,teamIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   if (teamIds.length > 0) {
     let query = supabase.from('teams').select('id, team_name')
     const { data: teams, error: teamsError } = teamIds.length === 1
       ? await query.eq('id', teamIds[0])
       : await query.in('id', teamIds)
-    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'userManagement.ts:153',message:'After teams query',data:{hasData:!!teams,hasError:!!teamsError,errorStatus:teamsError?.status,errorCode:teamsError?.code,errorMessage:teamsError?.message,usedEq:teamIds.length===1},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     if (!teamsError && teams) {
       const teamsArray = Array.isArray(teams) ? teams : [teams]
       teamsArray.forEach((team: any) => {
