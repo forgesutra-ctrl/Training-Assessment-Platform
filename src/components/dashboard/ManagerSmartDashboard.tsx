@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Calendar, TrendingUp, Users, Clock, AlertCircle } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -30,55 +30,22 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
   const [suggestedTrainers, setSuggestedTrainers] = useState<TrainerToAssess[]>([])
   const [upcomingAssessments, setUpcomingAssessments] = useState<any[]>([])
 
-  useEffect(() => {
+  const loadSuggestedTrainers = useCallback(async () => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:29',message:'useEffect triggered',data:{hasUser:!!user,hasProfile:!!profile,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:74',message:'loadSuggestedTrainers called',data:{hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
     // #endregion
-    // Don't wait for profile - load data as soon as we have user
-    if (user) {
-      loadDashboardData()
-    } else {
-      setLoading(false)
-    }
-  }, [user, profile])
-
-  const loadDashboardData = async () => {
     if (!user) {
-      setLoading(false)
+      console.warn('Cannot load suggested trainers: user is undefined')
+      setSuggestedTrainers([])
       return
     }
-
-    try {
-      setLoading(true)
-      
-      // Load recommendations
-      const recs = await getManagerRecommendations(user.id)
-      setRecommendations(recs)
-
-      // Load suggested trainers
-      await loadSuggestedTrainers()
-
-      // Load upcoming assessments (calendar)
-      await loadUpcomingAssessments()
-    } catch (error: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:48',message:'Error loading dashboard',data:{errorName:error?.name,errorMessage:error?.message,errorCode:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
-      console.error('Error loading dashboard:', error)
-      toast.error('Failed to load dashboard data')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadSuggestedTrainers = async () => {
     try {
       // Fetch trainers first
       const { data: eligibleTrainers, error: trainersError } = await supabase
         .from('profiles')
         .select('id, full_name, team_id')
         .eq('role', 'trainer')
-        .neq('reporting_manager_id', user!.id)
+        .neq('reporting_manager_id', user.id)
 
       if (trainersError) {
         console.error('Error fetching eligible trainers:', trainersError)
@@ -112,7 +79,7 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
       const { data: assessments, error: assessmentsError } = await supabase
         .from('assessments')
         .select('trainer_id, assessment_date')
-        .eq('assessor_id', user!.id)
+        .eq('assessor_id', user.id)
         .order('assessment_date', { ascending: false })
 
       if (assessmentsError) {
@@ -159,9 +126,17 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
       console.error('Error loading suggested trainers:', error)
       setSuggestedTrainers([])
     }
-  }
+  }, [user])
 
-  const loadUpcomingAssessments = async () => {
+  const loadUpcomingAssessments = useCallback(async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:164',message:'loadUpcomingAssessments called',data:{hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    if (!user) {
+      console.warn('Cannot load upcoming assessments: user is undefined')
+      setUpcomingAssessments([])
+      return
+    }
     // This would integrate with a calendar system
     // For now, show recent assessments
     try {
@@ -169,7 +144,7 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
       const { data: assessments, error: assessmentsError } = await supabase
         .from('assessments')
         .select('id, assessment_date, trainer_id')
-        .eq('assessor_id', user!.id)
+        .eq('assessor_id', user.id)
         .order('assessment_date', { ascending: false })
         .limit(5)
 
@@ -216,6 +191,87 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
       console.error('Error loading upcoming assessments:', error)
       setUpcomingAssessments([])
     }
+  }, [user])
+
+  const loadDashboardData = useCallback(async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:45',message:'loadDashboardData called',data:{hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+    // #endregion
+    if (!user) {
+      console.warn('Cannot load dashboard data: user is undefined')
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:55',message:'Before getManagerRecommendations',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      
+      // Load recommendations
+      const recs = await getManagerRecommendations(user.id)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:59',message:'After getManagerRecommendations',data:{recsCount:recs?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      setRecommendations(recs)
+
+      // Load suggested trainers
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:65',message:'Before loadSuggestedTrainers',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      await loadSuggestedTrainers()
+
+      // Load upcoming assessments (calendar)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:70',message:'Before loadUpcomingAssessments',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+      // #endregion
+      await loadUpcomingAssessments()
+    } catch (error: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:48',message:'Error loading dashboard',data:{errorName:error?.name,errorMessage:error?.message,errorCode:error?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      console.error('Error loading dashboard:', error)
+      toast.error('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
+    }
+  }, [user, loadSuggestedTrainers, loadUpcomingAssessments])
+
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:33',message:'useEffect triggered',data:{hasUser:!!user,hasProfile:!!profile,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+    // Don't wait for profile - load data as soon as we have user
+    if (user) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:38',message:'About to call loadDashboardData',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      loadDashboardData().catch((error) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:42',message:'loadDashboardData promise rejected',data:{errorName:error?.name,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        console.error('Error in loadDashboardData:', error)
+      })
+    } else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerSmartDashboard.tsx:42',message:'No user, setting loading to false',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      setLoading(false)
+    }
+  }, [user, profile, loadDashboardData])
+
+  // Guard against missing user during render
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <p className="text-gray-600 mb-2">Loading user data...</p>
+          <LoadingSpinner size="md" />
+        </div>
+      </div>
+    )
   }
 
   if (loading) {
@@ -231,10 +287,10 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
       {/* Header with Refresh */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Welcome back, {profile?.full_name || user?.email || 'Manager'}!</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Welcome back, {profile?.full_name || user.email || 'Manager'}!</h2>
           <p className="text-sm text-gray-600 mt-1">Here's what needs your attention today</p>
         </div>
-        <DataRefresh onRefresh={loadDashboardData} autoRefreshInterval={30} />
+        <DataRefresh onRefresh={() => loadDashboardData().catch(console.error)} autoRefreshInterval={30} />
       </div>
 
       {/* Action Required Widget */}

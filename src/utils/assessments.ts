@@ -25,10 +25,10 @@ export const fetchEligibleTrainers = async (managerId: string) => {
   let teamMap = new Map<string, any>()
   
   if (teamIds.length > 0) {
-    const { data: teams, error: teamsError } = await supabase
-      .from('teams')
-      .select('id, team_name')
-      .in('id', teamIds)
+    let query = supabase.from('teams').select('id, team_name')
+    const { data: teams, error: teamsError } = teamIds.length === 1
+      ? await query.eq('id', teamIds[0])
+      : await query.in('id', teamIds)
     
     if (!teamsError && teams) {
       teams.forEach((team: any) => {

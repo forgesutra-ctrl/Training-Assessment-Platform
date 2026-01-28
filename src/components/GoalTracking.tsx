@@ -348,25 +348,9 @@ const GoalTracking = () => {
                       // #region agent log
                       fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoalTracking.tsx:333',message:'Textarea onChange',data:{valueLength:e.target.value.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
                       // #endregion
-                      try {
-                        setNewGoal({ ...newGoal, description: e.target.value })
-                      } catch (error) {
-                        // #region agent log
-                        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoalTracking.tsx:338',message:'Textarea onChange error',data:{error:error?.toString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-                        // #endregion
-                        console.error('Error updating description:', error)
-                        // Prevent crash by catching error
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // Ensure value is set on blur
-                      if (e.target.value !== newGoal.description) {
-                        try {
-                          setNewGoal({ ...newGoal, description: e.target.value })
-                        } catch (error) {
-                          console.error('Error updating description on blur:', error)
-                        }
-                      }
+                      const newValue = e.target.value || ''
+                      // Use functional update to ensure we have latest state
+                      setNewGoal((prev) => ({ ...prev, description: newValue }))
                     }}
                     className="input-field"
                     rows={3}

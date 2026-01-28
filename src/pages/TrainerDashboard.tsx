@@ -104,7 +104,8 @@ const TrainerDashboard = () => {
 
         // Check for alerts
         const alerts = await checkAlerts(user.id, profile.role)
-        const { notificationService } = await import('@/utils/notifications')
+        const notificationModule = await import('@/utils/notifications')
+        const notificationService = notificationModule.notificationService
         for (const alert of alerts) {
           notificationService.addNotification(alert)
         }

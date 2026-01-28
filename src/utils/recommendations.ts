@@ -20,6 +20,9 @@ export interface Recommendation {
  * Get recommendations for managers
  */
 export const getManagerRecommendations = async (managerId: string): Promise<Recommendation[]> => {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations.ts:22',message:'getManagerRecommendations called',data:{managerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+  // #endregion
   const recommendations: Recommendation[] = []
 
   try {
@@ -27,18 +30,32 @@ export const getManagerRecommendations = async (managerId: string): Promise<Reco
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
+    // Fetch trainers first (no nested queries)
     const { data: eligibleTrainers } = await supabase
       .from('profiles')
-      .select(`
-        id,
-        full_name,
-        team_id,
-        teams(team_name)
-      `)
+      .select('id, full_name, team_id')
       .eq('role', 'trainer')
       .neq('reporting_manager_id', managerId)
 
     if (eligibleTrainers && eligibleTrainers.length > 0) {
+      // Fetch teams separately
+      const teamIds = [...new Set(eligibleTrainers.map((t: any) => t.team_id).filter(Boolean))]
+      let teamMap = new Map<string, any>()
+      
+      if (teamIds.length > 0) {
+        let query = supabase.from('teams').select('id, team_name')
+        const { data: teams } = teamIds.length === 1
+          ? await query.eq('id', teamIds[0])
+          : await query.in('id', teamIds)
+        
+        if (teams) {
+          const teamsArray = Array.isArray(teams) ? teams : [teams]
+          teamsArray.forEach((team: any) => {
+            teamMap.set(team.id, team)
+          })
+        }
+      }
+
       // Get assessments this month
       const { data: recentAssessments } = await supabase
         .from('assessments')
@@ -48,10 +65,13 @@ export const getManagerRecommendations = async (managerId: string): Promise<Reco
 
       const assessedTrainerIds = new Set(recentAssessments?.map((a) => a.trainer_id) || [])
 
-      // Find trainers not assessed this month
-      const unassessedTrainers = eligibleTrainers.filter(
-        (t) => !assessedTrainerIds.has(t.id)
-      )
+      // Find trainers not assessed this month (with team names)
+      const unassessedTrainers = eligibleTrainers
+        .filter((t) => !assessedTrainerIds.has(t.id))
+        .map((t: any) => ({
+          ...t,
+          team_name: t.team_id ? teamMap.get(t.team_id)?.team_name : null,
+        }))
 
       if (unassessedTrainers.length > 0) {
         recommendations.push({
@@ -59,7 +79,7 @@ export const getManagerRecommendations = async (managerId: string): Promise<Reco
           type: 'action',
           priority: 'high',
           title: `${unassessedTrainers.length} trainer${unassessedTrainers.length > 1 ? 's' : ''} need assessment this month`,
-          description: `You haven't assessed ${unassessedTrainers.map((t) => t.full_name).join(', ')} this month.`,
+          description: `You haven't assessed ${unassessedTrainers.map((t: any) => t.full_name).join(', ')} this month.`,
           actionLabel: 'Assess Now',
           actionUrl: '/manager/assessment/new',
           metadata: { trainers: unassessedTrainers },
@@ -83,11 +103,16 @@ export const getManagerRecommendations = async (managerId: string): Promise<Reco
         }
       })
 
-      const overdueTrainers = eligibleTrainers.filter((trainer) => {
-        const lastAssessment = lastAssessmentMap.get(trainer.id)
-        if (!lastAssessment) return true // Never assessed
-        return lastAssessment < thirtyDaysAgo
-      })
+      const overdueTrainers = eligibleTrainers
+        .filter((trainer) => {
+          const lastAssessment = lastAssessmentMap.get(trainer.id)
+          if (!lastAssessment) return true // Never assessed
+          return lastAssessment < thirtyDaysAgo
+        })
+        .map((t: any) => ({
+          ...t,
+          team_name: t.team_id ? teamMap.get(t.team_id)?.team_name : null,
+        }))
 
       if (overdueTrainers.length > 0) {
         recommendations.push({
@@ -113,6 +138,10 @@ export const getManagerRecommendations = async (managerId: string): Promise<Reco
           if (!lastAssessment) return true
           return lastAssessment < sevenDaysAgo
         })
+        .map((t: any) => ({
+          ...t,
+          team_name: t.team_id ? teamMap.get(t.team_id)?.team_name : null,
+        }))
         .slice(0, 5)
 
       if (suggestedTrainers.length > 0) {
@@ -121,7 +150,7 @@ export const getManagerRecommendations = async (managerId: string): Promise<Reco
           type: 'suggestion',
           priority: 'medium',
           title: 'Suggested trainers to assess this week',
-          description: `Consider assessing: ${suggestedTrainers.map((t) => t.full_name).join(', ')}`,
+          description: `Consider assessing: ${suggestedTrainers.map((t: any) => t.full_name).join(', ')}`,
           actionLabel: 'Start Assessment',
           actionUrl: '/manager/assessment/new',
           metadata: { trainers: suggestedTrainers },

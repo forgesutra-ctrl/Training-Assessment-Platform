@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FileText, Users, Star, Plus, LogOut, Menu, Eye, Calendar } from 'lucide-react'
+import { FileText, Users, Star, Plus, LogOut, Menu, Eye, Calendar, User } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { fetchManagerAssessments, fetchMonthlyStats } from '@/utils/assessments'
