@@ -72,7 +72,16 @@ const GoalTracking = () => {
   const handleCreateGoal = async () => {
     if (!user) return
 
+    // Validate required fields
+    if (!newGoal.target_value && newGoal.type !== 'assessment_count') {
+      toast.error('Please enter a target value')
+      return
+    }
+
     try {
+      // Prevent multiple submissions
+      setLoading(true)
+      
       await createGoal({
         user_id: user.id,
         type: newGoal.type,
@@ -81,7 +90,7 @@ const GoalTracking = () => {
         deadline: newGoal.deadline || null,
         status: 'active',
         created_by: user.id,
-        description: newGoal.description || null,
+        description: newGoal.description?.trim() || null,
       })
 
       toast.success('Goal created successfully!')
@@ -93,10 +102,12 @@ const GoalTracking = () => {
         deadline: '',
         description: '',
       })
-      loadGoals()
+      await loadGoals()
     } catch (error: any) {
       console.error('Error creating goal:', error)
-      toast.error('Failed to create goal')
+      toast.error(error.message || 'Failed to create goal')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -329,12 +340,33 @@ const GoalTracking = () => {
                     Description (Optional)
                   </label>
                   <textarea
-                    value={newGoal.description}
-                    onChange={(e) => setNewGoal({ ...newGoal, description: e.target.value })}
+                    value={newGoal.description || ''}
+                    onChange={(e) => {
+                      try {
+                        setNewGoal({ ...newGoal, description: e.target.value })
+                      } catch (error) {
+                        console.error('Error updating description:', error)
+                        // Prevent crash by catching error
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Ensure value is set on blur
+                      if (e.target.value !== newGoal.description) {
+                        try {
+                          setNewGoal({ ...newGoal, description: e.target.value })
+                        } catch (error) {
+                          console.error('Error updating description on blur:', error)
+                        }
+                      }
+                    }}
                     className="input-field"
                     rows={3}
                     placeholder="e.g., Improve Technical Skills to 4+ by end of Q2"
+                    maxLength={500}
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {newGoal.description?.length || 0}/500 characters
+                  </p>
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button

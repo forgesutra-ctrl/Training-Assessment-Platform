@@ -26,7 +26,8 @@ const ManagerDashboard = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!user || !profile) {
+      // Don't wait for profile - load data as soon as we have user
+      if (!user) {
         setLoading(false)
         return
       }
@@ -41,11 +42,18 @@ const ManagerDashboard = () => {
         setAssessments(assessmentsData)
         setStats(statsData)
 
-        // Check for alerts
-        const alerts = await checkAlerts(user.id, profile.role)
-        const { notificationService } = await import('@/utils/notifications')
-        for (const alert of alerts) {
-          notificationService.addNotification(alert)
+        // Check for alerts only if profile is available (non-blocking)
+        if (profile) {
+          try {
+            const alerts = await checkAlerts(user.id, profile.role)
+            const { notificationService } = await import('@/utils/notifications')
+            for (const alert of alerts) {
+              notificationService.addNotification(alert)
+            }
+          } catch (alertError) {
+            // Non-critical - don't block dashboard
+            console.warn('Error loading alerts:', alertError)
+          }
         }
       } catch (error: any) {
         console.error('Error loading dashboard data:', error)
@@ -55,7 +63,17 @@ const ManagerDashboard = () => {
       }
     }
 
+    // Add timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.warn('Dashboard load timeout - stopping loading state')
+        setLoading(false)
+      }
+    }, 5000) // 5 second timeout
+
     loadData()
+
+    return () => clearTimeout(timeoutId)
   }, [user, profile])
 
   const handleSignOut = async () => {

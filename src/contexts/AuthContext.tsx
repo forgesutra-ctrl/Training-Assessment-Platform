@@ -381,13 +381,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          // Fetch profile but don't block UI if it fails
+          // Set user immediately - don't wait for profile
+          setUser(session.user)
+          setLoading(false) // Stop loading immediately so UI can render
+          if (timeoutId) clearTimeout(timeoutId)
+          
+          // Fetch profile in background - don't block UI
           fetchProfile(session.user.id)
             .then((profile) => {
               if (isMounted) {
                 setProfile(profile)
-                setLoading(false)
-                if (timeoutId) clearTimeout(timeoutId)
               }
             })
             .catch((error) => {
@@ -396,10 +399,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 return
               }
               console.error('Error fetching profile:', error)
-              if (isMounted) {
-                setLoading(false)
-                if (timeoutId) clearTimeout(timeoutId)
-              }
+              // Don't set loading to false here - already set above
             })
         } else {
           // No session - show login form immediately
@@ -466,57 +466,37 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(session?.user ?? null)
 
         if (session?.user) {
-          try {
-            console.log('🔄 Fetching profile for user:', session.user.id, session.user.email)
-            
-            // Fetch profile with minimal retry (only 1 retry for speed)
-            let profileData = await fetchProfile(session.user.id, true)
-            if (!profileData) {
-              // Single quick retry
-              await new Promise(resolve => setTimeout(resolve, 300))
-              profileData = await fetchProfile(session.user.id, true)
-            }
-            
-            if (profileData) {
-              console.log('✅ Profile loaded in auth state change:', profileData)
-              setProfile(profileData)
-            } else {
-              console.error('❌ Profile is null after fetchProfile call (all retries exhausted)')
-              console.error('   User ID:', session.user.id)
-              console.error('   Email:', session.user.email)
-              console.error('   💡 Check:')
-              console.error('      1. Profile exists in database (run diagnostic query)')
-              console.error('      2. RLS policy "Users can view their own profile" is active')
-              console.error('      3. Session token is valid')
-              // Don't set profile to null - keep trying
-            }
-          } catch (error: any) {
-            // Ignore AbortError - it's expected when component unmounts
-            if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-              return
-            }
-            // If it's a token error, clear stale data
-            if (error.message?.includes('Refresh Token') || 
-                error.message?.includes('Invalid Refresh Token') ||
-                error.message?.includes('Token Not Found')) {
-              console.log('🧹 Token error in auth state change, clearing stale data')
-              await clearStaleAuth()
-            }
-            console.error('❌ Error fetching profile in auth state change:', error)
-            console.error('   User ID:', session?.user?.id)
-            console.error('   Email:', session?.user?.email)
-            console.error('   Error details:', {
-              code: error.code,
-              message: error.message,
-              details: error.details,
+          // Set loading to false immediately - don't wait for profile
+          setLoading(false)
+          
+          // Fetch profile in background (non-blocking)
+          fetchProfile(session.user.id, true)
+            .then((profileData) => {
+              if (profileData) {
+                console.log('✅ Profile loaded in auth state change:', profileData)
+                setProfile(profileData)
+              } else {
+                console.warn('⚠️ Profile not found, but continuing without blocking UI')
+              }
             })
-          }
+            .catch((error: any) => {
+              // Ignore AbortError - it's expected when component unmounts
+              if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+                return
+              }
+              // If it's a token error, clear stale data
+              if (error.message?.includes('Refresh Token') || 
+                  error.message?.includes('Invalid Refresh Token') ||
+                  error.message?.includes('Token Not Found')) {
+                console.log('🧹 Token error in auth state change, clearing stale data')
+                clearStaleAuth()
+              }
+              console.error('❌ Error fetching profile in auth state change:', error)
+            })
         } else {
           setProfile(null)
+          setLoading(false)
         }
-
-        // Always set loading to false after auth state change
-        setLoading(false)
 
         // Handle different auth events
         if (event === 'SIGNED_IN') {
