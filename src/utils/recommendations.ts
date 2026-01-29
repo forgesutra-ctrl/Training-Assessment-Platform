@@ -4,6 +4,9 @@
  */
 
 import { supabase } from '@/lib/supabase'
+import { getEligibleTrainerIdsForAssessor } from '@/utils/assessorAssesseeEligibility'
+import { calculateParameterAverages } from '@/utils/trainerStats'
+import { generateLearningRecommendations } from '@/utils/aiService'
 
 export interface Recommendation {
   id: string
@@ -20,9 +23,6 @@ export interface Recommendation {
  * Get recommendations for managers
  */
 export const getManagerRecommendations = async (managerId: string): Promise<Recommendation[]> => {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations.ts:22',message:'getManagerRecommendations called',data:{managerId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-  // #endregion
   const recommendations: Recommendation[] = []
 
   try {
@@ -30,24 +30,26 @@ export const getManagerRecommendations = async (managerId: string): Promise<Reco
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
-    // Fetch trainers first (no nested queries)
-    const { data: eligibleTrainers } = await supabase
+    // Eligible trainers: rule-based + admin overrides (no self, no reportees)
+    const eligibleIds = await getEligibleTrainerIdsForAssessor(managerId)
+    if (eligibleIds.length === 0) {
+      return recommendations
+    }
+
+    const { data: trainersData } = await supabase
       .from('profiles')
       .select('id, full_name, team_id')
-      .eq('role', 'trainer')
-      .neq('reporting_manager_id', managerId)
+      .in('id', eligibleIds)
+    const eligibleTrainers = trainersData || []
 
-    if (eligibleTrainers && eligibleTrainers.length > 0) {
-      // Fetch teams separately
+    if (eligibleTrainers.length > 0) {
       const teamIds = [...new Set(eligibleTrainers.map((t: any) => t.team_id).filter(Boolean))]
       let teamMap = new Map<string, any>()
-      
       if (teamIds.length > 0) {
-        let query = supabase.from('teams').select('id, team_name')
+        const query = supabase.from('teams').select('id, team_name')
         const { data: teams } = teamIds.length === 1
           ? await query.eq('id', teamIds[0])
           : await query.in('id', teamIds)
-        
         if (teams) {
           const teamsArray = Array.isArray(teams) ? teams : [teams]
           teamsArray.forEach((team: any) => {
@@ -165,144 +167,68 @@ export const getManagerRecommendations = async (managerId: string): Promise<Reco
 }
 
 /**
- * Get recommendations for trainers
+ * Get recommendations for trainers (AI-driven from weakest areas + assessment overall comments)
  */
 export const getTrainerRecommendations = async (trainerId: string): Promise<Recommendation[]> => {
   const recommendations: Recommendation[] = []
 
   try {
-    // Get trainer's assessments
     const { data: assessments } = await supabase
       .from('assessments')
       .select('*')
       .eq('trainer_id', trainerId)
       .order('assessment_date', { ascending: false })
-      .limit(10)
+      .limit(20)
 
-    if (assessments && assessments.length > 0) {
-      // Calculate parameter averages
-      const paramSums: Record<string, number> = {
-        trainers_readiness: 0,
-        communication_skills: 0,
-        domain_expertise: 0,
-        knowledge_displayed: 0,
-        people_management: 0,
-        technical_skills: 0,
-      }
-
-      assessments.forEach((a) => {
-        Object.keys(paramSums).forEach((param) => {
-          paramSums[param] += a[param] || 0
-        })
-      })
-
-      const paramAverages: Record<string, number> = {}
-      Object.keys(paramSums).forEach((param) => {
-        paramAverages[param] = paramSums[param] / assessments.length
-      })
-
-      // Find lowest parameter
-      const lowestParam = Object.entries(paramAverages).reduce((a, b) =>
-        a[1] < b[1] ? a : b
-      )
-
-      if (lowestParam[1] < 3.5) {
-        recommendations.push({
-          id: 'focus-area',
-          type: 'suggestion',
-          priority: 'medium',
-          title: `Focus on ${lowestParam[0].replace(/_/g, ' ')}`,
-          description: `This is your lowest parameter (${lowestParam[1].toFixed(2)}/5.0). Consider targeted improvement.`,
-          actionLabel: 'View Details',
-          actionUrl: '/trainer/dashboard',
-          metadata: { parameter: lowestParam[0], score: lowestParam[1] },
-        })
-      }
-
-      // Find highest parameter
-      const highestParam = Object.entries(paramAverages).reduce((a, b) =>
-        a[1] > b[1] ? a : b
-      )
-
-      if (highestParam[1] >= 4.0) {
-        recommendations.push({
-          id: 'strength',
-          type: 'insight',
-          priority: 'low',
-          title: `Your strength: ${highestParam[0].replace(/_/g, ' ')}`,
-          description: `You're excelling in this area with an average of ${highestParam[1].toFixed(2)}/5.0. Keep it up!`,
-          metadata: { parameter: highestParam[0], score: highestParam[1] },
-        })
-      }
-
-      // Compare current month vs last month
-      const now = new Date()
-      const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      const monthBeforeLast = new Date(now.getFullYear(), now.getMonth() - 2, 1)
-
-      const currentMonthAssessments = assessments.filter(
-        (a) => new Date(a.assessment_date) >= currentMonth
-      )
-      const lastMonthAssessments = assessments.filter(
-        (a) => {
-          const date = new Date(a.assessment_date)
-          return date >= lastMonth && date < currentMonth
-        }
-      )
-
-      if (currentMonthAssessments.length > 0 && lastMonthAssessments.length > 0) {
-        const currentAvg =
-          currentMonthAssessments.reduce((sum, a) => {
-            return (
-              sum +
-              (a.trainers_readiness +
-                a.communication_skills +
-                a.domain_expertise +
-                a.knowledge_displayed +
-                a.people_management +
-                a.technical_skills) /
-                6
-            )
-          }, 0) / currentMonthAssessments.length
-
-        const lastAvg =
-          lastMonthAssessments.reduce((sum, a) => {
-            return (
-              sum +
-              (a.trainers_readiness +
-                a.communication_skills +
-                a.domain_expertise +
-                a.knowledge_displayed +
-                a.people_management +
-                a.technical_skills) /
-                6
-            )
-          }, 0) / lastMonthAssessments.length
-
-        const change = ((currentAvg - lastAvg) / lastAvg) * 100
-
-        if (change > 5) {
-          recommendations.push({
-            id: 'improving',
-            type: 'insight',
-            priority: 'low',
-            title: "You're improving!",
-            description: `Your average rating increased by ${change.toFixed(1)}% this month. Great progress!`,
-            metadata: { change, currentAvg, lastAvg },
-          })
-        } else if (change < -5) {
-          recommendations.push({
-            id: 'declining',
-            type: 'alert',
-            priority: 'medium',
-            title: 'Performance trend',
-            description: `Your average rating decreased by ${Math.abs(change).toFixed(1)}% this month. Review feedback for improvement areas.`,
-            metadata: { change, currentAvg, lastAvg },
-          })
-        }
-      }
+    if (!assessments || assessments.length === 0) {
+      return recommendations
     }
+
+    // 21-parameter schema: identify weakest areas (lowest average parameters)
+    const parameterAverages = calculateParameterAverages(assessments as any[])
+    const sortedByWorst = [...parameterAverages]
+      .filter((p) => p.average > 0)
+      .sort((a, b) => a.average - b.average)
+
+    const weakestAreas = sortedByWorst
+      .slice(0, 4)
+      .filter((p) => p.average < 4.5)
+      .map((p) => p.parameter)
+
+    // Extract overall comments from assessments (for AI context)
+    const overallComments = assessments
+      .map((a: any) => a.overall_comments)
+      .filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
+
+    // First recommendation: least performed area(s)
+    if (weakestAreas.length > 0) {
+      const areaLabel = weakestAreas.join(', ')
+      const worst = sortedByWorst[0]
+      const detail = worst ? ` — lowest: ${worst.parameter} at ${worst.average.toFixed(2)}/5` : ''
+      recommendations.push({
+        id: 'least-performed-areas',
+        type: 'insight',
+        priority: 'high',
+        title: 'Least performed area(s)',
+        description: `${areaLabel}${detail}. Focus development here.`,
+        actionLabel: 'View Details',
+        actionUrl: '/trainer/dashboard',
+        metadata: { weakestAreas, parameterAverages: sortedByWorst.slice(0, 5) },
+      })
+    }
+
+    // AI-driven learning recommendations (uses weakest areas + overall comments)
+    const aiItems = await generateLearningRecommendations(weakestAreas, overallComments)
+    aiItems.forEach((item, index) => {
+      recommendations.push({
+        id: `ai-learning-${index}`,
+        type: 'suggestion',
+        priority: 'medium',
+        title: item.title,
+        description: item.description,
+        metadata: { source: 'ai' },
+      })
+    })
   } catch (error) {
     console.error('Error generating trainer recommendations:', error)
   }

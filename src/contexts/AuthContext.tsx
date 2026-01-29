@@ -37,15 +37,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Fetch user profile from profiles table
   const fetchProfile = async (userId: string, autoCreate: boolean = true): Promise<Profile | null> => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:39',message:'fetchProfile called',data:{userId,autoCreate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     try {
       // Ensure we have a valid session before querying
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:42',message:'After getSession',data:{hasSession:!!currentSession,sessionUserId:currentSession?.user?.id,hasError:!!sessionError},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       
       if (sessionError) {
         console.error('❌ Error getting session:', sessionError)
@@ -76,18 +70,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Use the session's user ID to ensure RLS policy works
       // The RLS policy checks auth.uid() = id, so we must query with the session user's ID
       const profileUserId = currentSession.user.id
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:74',message:'Before profile query',data:{profileUserId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', profileUserId)  // Use session user ID, not the passed userId
         .single()
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:78',message:'After profile query',data:{hasData:!!data,hasError:!!error,errorCode:error?.code,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       if (error) {
         // Ignore AbortError
@@ -357,9 +345,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Get initial session with error handling for refresh token issues
         return supabase.auth.getSession()
       })
-      .then(({ data: { session }, error }) => {
+      .then((result) => {
         if (!isMounted) return
-        
+        if (result == null || typeof result !== 'object' || result.data == null) {
+          setLoading(false)
+          if (timeoutId) clearTimeout(timeoutId)
+          return
+        }
+        const { data, error } = result
+        const session = data?.session ?? null
+
         // Handle refresh token errors gracefully - don't block the UI
         if (error) {
           // Ignore AbortError - it's expected when component unmounts
@@ -389,9 +384,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           return
         }
         
-        setSession(session)
+        setSession(session ?? null)
         setUser(session?.user ?? null)
-        
+
         if (session?.user) {
           // Set user immediately - don't wait for profile
           setUser(session.user)
@@ -454,9 +449,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Listen for auth changes
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const changeResult = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
         console.log('🔄 Auth state changed:', event, session?.user?.email)
         
@@ -515,7 +508,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           // Don't show toast here - it's shown in Login component
           console.log('✅ SIGNED_IN event received')
         } else if (event === 'SIGNED_OUT') {
-          toast.success('Successfully signed out!')
+          // Toast shown only in signOut() to avoid duplicate toasts
         }
       } catch (error: any) {
         // Ignore AbortError - it's expected when component unmounts
@@ -534,14 +527,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     })
 
     return () => {
-      subscription.unsubscribe()
+      changeResult?.data?.subscription?.unsubscribe()
     }
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:529',message:'signIn called',data:{email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     try {
       setLoading(true)
       
@@ -559,17 +549,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         toast.error(errorMsg)
         return { success: false, error: errorMsg }
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:548',message:'Before signInWithPassword',data:{hasUrl:!!supabaseUrl,hasKey:!!supabaseAnonKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthContext.tsx:552',message:'After signInWithPassword',data:{hasData:!!data,hasError:!!error,errorStatus:error?.status,errorMessage:error?.message,hasUser:!!data?.user,userId:data?.user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       if (error) {
         // Provide more helpful error messages
@@ -763,6 +747,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(null)
       setProfile(null)
       setSession(null)
+      toast.success('Successfully signed out!')
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign out')
       throw error

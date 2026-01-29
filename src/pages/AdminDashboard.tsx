@@ -17,6 +17,7 @@ import ComparativeAnalysis from '@/components/admin/ComparativeAnalysis'
 import ReportTemplates from '@/components/admin/ReportTemplates'
 import CorrelationAnalysis from '@/components/admin/CorrelationAnalysis'
 import ScenarioModeling from '@/components/admin/ScenarioModeling'
+import AssessorAssesseeMapping from '@/components/admin/AssessorAssesseeMapping'
 import AdminSmartDashboard from '@/components/dashboard/AdminSmartDashboard'
 import NotificationDropdown from '@/components/dashboard/NotificationDropdown'
 import QuickActions from '@/components/dashboard/QuickActions'
@@ -24,9 +25,9 @@ import SmartSearch from '@/components/SmartSearch'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 
-type Tab = 'overview' | 'trainer-performance' | 'manager-activity' | 'time-analysis' | 'user-management' | 'audit-log' | 'predictive-analytics' | 'trend-alerts' | 'data-studio' | 'comparative-analysis' | 'report-templates' | 'correlation-analysis' | 'scenario-modeling'
+type Tab = 'overview' | 'trainer-performance' | 'manager-activity' | 'time-analysis' | 'user-management' | 'assessor-assessee-mapping' | 'audit-log' | 'predictive-analytics' | 'trend-alerts' | 'data-studio' | 'comparative-analysis' | 'report-templates' | 'correlation-analysis' | 'scenario-modeling'
 
-const VALID_TABS: Tab[] = ['overview', 'trainer-performance', 'manager-activity', 'time-analysis', 'user-management', 'audit-log', 'predictive-analytics', 'trend-alerts', 'data-studio', 'comparative-analysis', 'report-templates', 'correlation-analysis', 'scenario-modeling']
+const VALID_TABS: Tab[] = ['overview', 'trainer-performance', 'manager-activity', 'time-analysis', 'user-management', 'assessor-assessee-mapping', 'audit-log', 'predictive-analytics', 'trend-alerts', 'data-studio', 'comparative-analysis', 'report-templates', 'correlation-analysis', 'scenario-modeling']
 
 interface TabGroup {
   title: string
@@ -123,6 +124,7 @@ const AdminDashboard = () => {
       icon: Settings,
       tabs: [
         { id: 'user-management', label: 'User Management', icon: UserCog },
+        { id: 'assessor-assessee-mapping', label: 'Assessor–Assessee Mapping', icon: Shield },
         { id: 'report-templates', label: 'Report Templates', icon: ReportIcon },
         { id: 'audit-log', label: 'Audit Log', icon: Shield },
       ],
@@ -182,12 +184,13 @@ const AdminDashboard = () => {
         <aside
           className={`
             fixed lg:static inset-y-0 left-0 z-30
-            w-64 bg-white border-r border-gray-200 shadow-xl lg:shadow-none
+            w-64 flex-shrink-0 bg-white border-r border-gray-200 shadow-xl lg:shadow-none
             transform transition-transform duration-300 ease-in-out
-            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             pt-16 lg:pt-0
             overflow-y-auto
             scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            lg:translate-x-0
           `}
         >
           <div className="p-4 space-y-6 pb-8">
@@ -355,6 +358,7 @@ const AdminDashboard = () => {
               {activeTab === 'manager-activity' && <ManagerActivity key="manager-activity" />}
               {activeTab === 'time-analysis' && <TimeAnalysis key="time-analysis" />}
               {activeTab === 'user-management' && <UserManagement key="user-management" />}
+              {activeTab === 'assessor-assessee-mapping' && <AssessorAssesseeMapping key="assessor-assessee-mapping" />}
               {activeTab === 'predictive-analytics' && <PredictiveAnalytics key="predictive-analytics" />}
               {activeTab === 'trend-alerts' && <TrendAlerts key="trend-alerts" />}
               {activeTab === 'data-studio' && <DataStudio key="data-studio" />}

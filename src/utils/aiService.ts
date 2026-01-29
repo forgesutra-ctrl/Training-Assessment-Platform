@@ -346,6 +346,198 @@ const generateFallbackInsights = (assessments: any[]): PerformanceInsight[] => {
 }
 
 /**
+ * Learning recommendation item for trainer dashboard
+ */
+export interface LearningRecommendationItem {
+  title: string
+  description: string
+}
+
+/**
+ * Generate AI-driven learning recommendations from weakest areas and assessment overall comments
+ */
+export const generateLearningRecommendations = async (
+  weakestAreas: string[],
+  overallComments: string[]
+): Promise<LearningRecommendationItem[]> => {
+  if (!isAIEnabled()) {
+    return getFallbackLearningRecommendations(weakestAreas)
+  }
+
+  try {
+    if (AI_PROVIDER === 'claude') {
+      return await generateLearningRecommendationsWithClaude(weakestAreas, overallComments)
+    }
+    return await generateLearningRecommendationsWithOpenAI(weakestAreas, overallComments)
+  } catch (error) {
+    console.error('AI learning recommendations error:', error)
+    return getFallbackLearningRecommendations(weakestAreas)
+  }
+}
+
+const generateLearningRecommendationsWithClaude = async (
+  weakestAreas: string[],
+  overallComments: string[]
+): Promise<LearningRecommendationItem[]> => {
+  const areasText = weakestAreas.length > 0 ? weakestAreas.join(', ') : 'general performance'
+  const commentsText =
+    overallComments.length > 0
+      ? overallComments
+          .slice(0, 15)
+          .map((c) => c.trim())
+          .filter(Boolean)
+          .join('\n')
+      : 'No written feedback available.'
+
+  const prompt = `You are a professional L&D coach for trainers. Based on the following, generate 3-5 short, actionable learning recommendations for the trainer.
+
+Least performed areas (parameters/sections): ${areasText}
+
+Overall comments from recent assessments (manager/assessor feedback):
+${commentsText}
+
+Requirements:
+- Each recommendation must be specific and actionable (what to do or learn next).
+- Tie recommendations to the weak areas and to themes from the overall comments where relevant.
+- Keep each title under 60 characters and each description under 150 characters.
+- Be constructive and professional.
+
+Return a JSON array only, no other text. Format: [{"title": "string", "description": "string"}, ...]`
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-3-sonnet-20240229',
+      max_tokens: 800,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Claude API error: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  const content = data.content[0].text
+
+  try {
+    const jsonMatch = content.match(/\[[\s\S]*\]/)
+    if (jsonMatch) {
+      const items = JSON.parse(jsonMatch[0]) as { title: string; description: string }[]
+      return items
+        .slice(0, 5)
+        .map((item) => ({
+          title: String(item.title || '').slice(0, 80),
+          description: String(item.description || '').slice(0, 300),
+        }))
+        .filter((item) => item.title && item.description)
+    }
+  } catch (e) {
+    console.error('Failed to parse AI learning recommendations:', e)
+  }
+
+  return getFallbackLearningRecommendations(weakestAreas)
+}
+
+const generateLearningRecommendationsWithOpenAI = async (
+  weakestAreas: string[],
+  overallComments: string[]
+): Promise<LearningRecommendationItem[]> => {
+  const areasText = weakestAreas.length > 0 ? weakestAreas.join(', ') : 'general performance'
+  const commentsText =
+    overallComments.length > 0
+      ? overallComments
+          .slice(0, 15)
+          .map((c) => c.trim())
+          .filter(Boolean)
+          .join('\n')
+      : 'No written feedback available.'
+
+  const prompt = `You are a professional L&D coach for trainers. Based on the following, generate 3-5 short, actionable learning recommendations.
+
+Least performed areas: ${areasText}
+
+Overall comments from assessments:
+${commentsText}
+
+Return a JSON array only: [{"title": "string", "description": "string"}, ...]. Each title under 60 chars, description under 150 chars. Be specific and tie to weak areas and feedback.`
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4-turbo-preview',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional L&D coach. Return only a valid JSON array.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 800,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  const content = data.choices[0].message.content
+
+  try {
+    const jsonMatch = content.match(/\[[\s\S]*\]/)
+    if (jsonMatch) {
+      const items = JSON.parse(jsonMatch[0]) as { title: string; description: string }[]
+      return items
+        .slice(0, 5)
+        .map((item) => ({
+          title: String(item.title || '').slice(0, 80),
+          description: String(item.description || '').slice(0, 300),
+        }))
+        .filter((item) => item.title && item.description)
+    }
+  } catch (e) {
+    console.error('Failed to parse AI learning recommendations:', e)
+  }
+
+  return getFallbackLearningRecommendations(weakestAreas)
+}
+
+const getFallbackLearningRecommendations = (
+  weakestAreas: string[]
+): LearningRecommendationItem[] => {
+  const areas = weakestAreas.length > 0 ? weakestAreas : ['overall performance']
+  const areaLabel = areas.slice(0, 3).join(', ')
+
+  return [
+    {
+      title: 'Focus on your least performed areas',
+      description: `Prioritize development in: ${areaLabel}. Set specific goals and practice in these areas before your next session.`,
+    },
+    {
+      title: 'Seek feedback after each session',
+      description:
+        'Ask your assessor for one concrete improvement and one thing that went well. Use this to adjust your next delivery.',
+    },
+    {
+      title: 'Use self-assessment between reviews',
+      description:
+        'After each training, note what you would rate yourself on the same parameters and compare when you receive feedback.',
+    },
+  ]
+}
+
+/**
  * Analyze sentiment of comments
  */
 export const analyzeSentiment = async (comments: string[]): Promise<{

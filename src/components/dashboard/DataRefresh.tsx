@@ -1,48 +1,29 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { RefreshCw, Clock } from 'lucide-react'
 
 interface DataRefreshProps {
   onRefresh: () => Promise<void> | void
-  autoRefreshInterval?: number // in seconds
   showTimestamp?: boolean
 }
 
 const DataRefresh = ({
   onRefresh,
-  autoRefreshInterval = 30,
   showTimestamp = true,
 }: DataRefreshProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
-  const [timeUntilRefresh, setTimeUntilRefresh] = useState(autoRefreshInterval)
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true)
     try {
       await onRefresh()
       setLastUpdated(new Date())
-      setTimeUntilRefresh(autoRefreshInterval)
     } catch (error) {
       console.error('Error refreshing data:', error)
     } finally {
       setIsRefreshing(false)
     }
-  }, [onRefresh, autoRefreshInterval])
-
-  useEffect(() => {
-    // Auto-refresh timer
-    const interval = setInterval(() => {
-      setTimeUntilRefresh((prev) => {
-        if (prev <= 1) {
-          handleRefresh()
-          return autoRefreshInterval
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [handleRefresh, autoRefreshInterval])
+  }, [onRefresh])
 
   const formatTimeAgo = (date: Date): string => {
     const now = new Date()
@@ -61,9 +42,6 @@ const DataRefresh = ({
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <Clock className="w-3 h-3" />
           <span>Updated {formatTimeAgo(lastUpdated)}</span>
-          {autoRefreshInterval > 0 && (
-            <span className="text-gray-400">• Auto-refresh in {timeUntilRefresh}s</span>
-          )}
         </div>
       )}
       <button

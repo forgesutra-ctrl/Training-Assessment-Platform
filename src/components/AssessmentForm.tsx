@@ -10,10 +10,10 @@ import {
   ChevronUp,
   CheckCircle2,
   Info,
-  Sparkles,
 } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import { fetchEligibleTrainers as fetchEligibleTrainersApi } from '@/utils/assessments'
 import { ASSESSMENT_STRUCTURE, ManagerAssessment, ParameterId } from '@/types'
 import StarRating from './StarRating'
 import LoadingSpinner from './LoadingSpinner'
@@ -41,6 +41,9 @@ interface FormErrors {
 }
 
 const TOTAL_PARAMETERS = 21
+
+/** Comments are mandatory for ratings 1–3; optional for 4–5 */
+const isCommentRequiredForRating = (rating: number) => rating >= 1 && rating <= 3
 
 const AssessmentForm = () => {
   const { profile, user } = useAuthContext()
@@ -97,68 +100,22 @@ const AssessmentForm = () => {
     return () => clearInterval(interval)
   }, [formData])
 
-  // Fetch eligible trainers
+  // Fetch eligible trainers (rule-based + admin overrides: no self, no reportees)
   useEffect(() => {
-    const fetchEligibleTrainers = async () => {
+    const load = async () => {
       if (!profile || !user) {
         setLoading(false)
         return
       }
-
       try {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssessmentForm.tsx:109',message:'Before fetching trainers',data:{hasProfile:!!profile,hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        // Fetch trainers first
-        const { data: trainersData, error: trainersError } = await supabase
-          .from('profiles')
-          .select('id, full_name, team_id')
-          .eq('role', 'trainer')
-          .neq('reporting_manager_id', user.id)
-          .order('full_name')
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AssessmentForm.tsx:116',message:'After fetching trainers',data:{hasData:!!trainersData,trainersCount:trainersData?.length,hasError:!!trainersError,errorCode:trainersError?.code,errorStatus:trainersError?.status,errorMessage:trainersError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        if (trainersError) {
-          console.error('Error fetching trainers:', trainersError)
-          throw trainersError
-        }
-
-        if (!trainersData || trainersData.length === 0) {
-          setTrainers([])
-          setLoading(false)
-          return
-        }
-
-        // Fetch teams separately
-        const teamIds = [...new Set(trainersData.map((t: any) => t.team_id).filter(Boolean))]
-        let teamMap = new Map<string, any>()
-        
-        if (teamIds.length > 0) {
-          let query = supabase.from('teams').select('id, team_name')
-          const { data: teams, error: teamsError } = teamIds.length === 1
-            ? await query.eq('id', teamIds[0])
-            : await query.in('id', teamIds)
-          
-          if (!teamsError && teams) {
-            const teamsArray = Array.isArray(teams) ? teams : [teams]
-            teamsArray.forEach((team: any) => {
-              teamMap.set(team.id, team)
-            })
-          }
-        }
-
-        // Combine trainers with team names
+        const list = await fetchEligibleTrainersApi(user.id)
         setTrainers(
-          trainersData.map((t: any) => {
-            const team = t.team_id ? teamMap.get(t.team_id) : null
-            return {
-              id: t.id,
-              full_name: t.full_name,
-              team_id: t.team_id,
-              team_name: team?.team_name || null,
-            }
-          })
+          list.map((t: any) => ({
+            id: t.id,
+            full_name: t.full_name,
+            team_id: t.team_id,
+            team_name: t.team_name ?? null,
+          }))
         )
       } catch (error: any) {
         console.error('Error fetching trainers:', error)
@@ -168,23 +125,24 @@ const AssessmentForm = () => {
         setLoading(false)
       }
     }
-
-    fetchEligibleTrainers()
+    load()
   }, [profile, user])
 
-  // Calculate completion progress
+  // Calculate completion progress (comment required only for ratings 1–3)
   const getCompletionProgress = () => {
     let completed = 0
     ASSESSMENT_STRUCTURE.categories.forEach((category) => {
       category.parameters.forEach((param) => {
         const rating = formData[param.id] as number
         const comments = formData[`${param.id}_comments`] as string
-        if (rating && rating > 0 && comments && comments.length >= 20) {
-          completed++
-        }
+        const ratingSet = rating != null && rating > 0
+        const commentOk = !isCommentRequiredForRating(rating) || (comments && comments.length >= 20)
+        if (ratingSet && commentOk) completed++
       })
     })
-    return { completed, total: TOTAL_PARAMETERS }
+    const overall = (formData.overall_comments as string) || ''
+    const overallOk = overall.length >= 20
+    return { completed, total: TOTAL_PARAMETERS, overallOk }
   }
 
   // Check if category is complete
@@ -195,7 +153,9 @@ const AssessmentForm = () => {
     return category.parameters.every((param) => {
       const rating = formData[param.id] as number
       const comments = formData[`${param.id}_comments`] as string
-      return rating && rating > 0 && comments && comments.length >= 20
+      const ratingSet = rating != null && rating > 0
+      const commentOk = !isCommentRequiredForRating(rating) || (comments && comments.length >= 20)
+      return ratingSet && commentOk
     })
   }
 
@@ -251,7 +211,7 @@ const AssessmentForm = () => {
       newErrors.assessment_date = 'Please select an assessment date'
     }
 
-    // Validate all 21 parameters
+    // Validate all 21 parameters (comments mandatory only for ratings 1–3)
     ASSESSMENT_STRUCTURE.categories.forEach((category) => {
       category.parameters.forEach((param) => {
         const rating = formData[param.id] as number
@@ -259,13 +219,25 @@ const AssessmentForm = () => {
 
         if (!rating || rating === 0) {
           newErrors[param.id] = `Please provide a rating for ${param.label}`
-        } else if (!comments || comments.length < 20) {
-          newErrors[`${param.id}_comments`] = `Comments must be at least 20 characters for ${param.label}`
-        } else if (comments.length > 500) {
+        } else if (isCommentRequiredForRating(rating)) {
+          if (!comments || comments.length < 20) {
+            newErrors[`${param.id}_comments`] = `Comments are required for ratings 1–3 (min 20 characters) for ${param.label}`
+          } else if (comments.length > 500) {
+            newErrors[`${param.id}_comments`] = `Comments must not exceed 500 characters`
+          }
+        } else if (comments && comments.length > 500) {
           newErrors[`${param.id}_comments`] = `Comments must not exceed 500 characters`
         }
       })
     })
+
+    // Overall comments: always required, min 20 characters
+    const overall = (formData.overall_comments as string) || ''
+    if (!overall || overall.trim().length < 20) {
+      newErrors.overall_comments = 'Overall comments are required (minimum 20 characters)'
+    } else if (overall.length > 2000) {
+      newErrors.overall_comments = 'Overall comments must not exceed 2000 characters'
+    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -330,7 +302,7 @@ const AssessmentForm = () => {
   }
 
   const progress = getCompletionProgress()
-  const allComplete = progress.completed === progress.total
+  const allComplete = progress.completed === progress.total && progress.overallOk
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -433,7 +405,9 @@ const AssessmentForm = () => {
             const categoryProgress = category.parameters.filter((param) => {
               const rating = formData[param.id] as number
               const comments = formData[`${param.id}_comments`] as string
-              return rating && rating > 0 && comments && comments.length >= 20
+              const ratingSet = rating != null && rating > 0
+              const commentOk = !isCommentRequiredForRating(rating) || (comments && comments.length >= 20)
+              return ratingSet && commentOk
             }).length
 
             return (
@@ -521,24 +495,12 @@ const AssessmentForm = () => {
 
                                 {rating > 0 && (
                                   <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                      <label className="block text-sm font-medium text-gray-700">
-                                        Comments <span className="text-red-500">*</span>
-                                        <span className="text-gray-500 font-normal ml-2">
-                                          ({comments.length}/500 characters, minimum 20)
-                                        </span>
-                                      </label>
-                                      <div className="flex-shrink-0">
-                                        <AIFeedbackAssistant
-                                          rating={rating}
-                                          parameter={param.label}
-                                          onSuggestionSelect={(suggestion) =>
-                                            handleCommentChange(param.id as ParameterId, suggestion)
-                                          }
-                                          currentValue={comments}
-                                        />
-                                      </div>
-                                    </div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      Comments {isCommentRequiredForRating(rating) && <span className="text-red-500">*</span>}
+                                      <span className="text-gray-500 font-normal ml-2">
+                                        ({comments.length}/500 characters{isCommentRequiredForRating(rating) ? ', required for ratings 1–3 (min 20)' : ', optional for 4–5'})
+                                      </span>
+                                    </label>
                                     <textarea
                                       value={comments}
                                       onChange={(e) => handleCommentChange(param.id as ParameterId, e.target.value)}
@@ -546,8 +508,8 @@ const AssessmentForm = () => {
                                       className={`input-field resize-none ${
                                         commentError ? 'border-red-300 focus:ring-red-500' : ''
                                       }`}
-                                      placeholder="Provide detailed feedback (minimum 20 characters)..."
-                                      required
+                                      placeholder={isCommentRequiredForRating(rating) ? 'Required for ratings 1–3 (min 20 characters)...' : 'Optional feedback...'}
+                                      required={isCommentRequiredForRating(rating)}
                                     />
                                     <ShakeOnError hasError={!!commentError}>
                                       {commentError && (
@@ -557,9 +519,9 @@ const AssessmentForm = () => {
                                         </p>
                                       )}
                                     </ShakeOnError>
-                                    {!commentError && comments.length > 0 && comments.length < 20 && (
+                                    {!commentError && isCommentRequiredForRating(rating) && comments.length > 0 && comments.length < 20 && (
                                       <p className="mt-1 text-sm text-yellow-600">
-                                        {20 - comments.length} more characters required
+                                        {20 - comments.length} more characters required (mandatory for ratings 1–3)
                                       </p>
                                     )}
                                   </div>
@@ -575,19 +537,45 @@ const AssessmentForm = () => {
             )
           })}
 
-          {/* Overall Comments */}
+          {/* Overall Comments - always required; AI suggestions only here */}
           <AnimatedCard>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Overall Comments (Optional)
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Overall Comments <span className="text-red-500">*</span>
+                  <span className="text-gray-500 font-normal ml-2">
+                    (required, minimum 20 characters)
+                  </span>
+                </label>
+                <div className="flex-shrink-0">
+                  <AIFeedbackAssistant
+                    rating={4}
+                    parameter="Overall feedback / summary of the assessment"
+                    onSuggestionSelect={(suggestion) =>
+                      setFormData((prev) => ({ ...prev, overall_comments: suggestion }))
+                    }
+                    currentValue={(formData.overall_comments as string) || ''}
+                  />
+                </div>
+              </div>
               <textarea
                 value={formData.overall_comments || ''}
                 onChange={(e) => setFormData((prev) => ({ ...prev, overall_comments: e.target.value }))}
                 rows={4}
-                className="input-field resize-none"
-                placeholder="Any additional overall feedback or observations..."
+                className={`input-field resize-none ${errors.overall_comments ? 'border-red-300 focus:ring-red-500' : ''}`}
+                placeholder="Overall feedback or observations (minimum 20 characters)..."
               />
+              {errors.overall_comments && (
+                <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {errors.overall_comments}
+                </p>
+              )}
+              {!errors.overall_comments && (formData.overall_comments as string)?.length > 0 && (formData.overall_comments as string).length < 20 && (
+                <p className="mt-1 text-sm text-yellow-600">
+                  {20 - (formData.overall_comments as string).length} more characters required
+                </p>
+              )}
             </div>
           </AnimatedCard>
 
@@ -597,10 +585,12 @@ const AssessmentForm = () => {
               {allComplete ? (
                 <span className="flex items-center gap-2 text-green-600">
                   <CheckCircle2 className="w-4 h-4" />
-                  All parameters completed. Ready to submit!
+                  All parameters and overall comments completed. Ready to submit!
                 </span>
+              ) : !progress.overallOk && progress.completed === progress.total ? (
+                'Add overall comments (min 20 characters) to submit'
               ) : (
-                `Complete all ${progress.total - progress.completed} remaining parameters to submit`
+                `Complete all ${progress.total - progress.completed} remaining parameters and overall comments to submit`
               )}
             </div>
             <AnimatedButton

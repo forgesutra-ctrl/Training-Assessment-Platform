@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, TrendingUp, TrendingDown, Eye, Download, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { Search, TrendingUp, TrendingDown, Eye, Download, ChevronUp, ChevronDown, X, Pencil } from 'lucide-react'
 import { fetchAllTrainersWithStats } from '@/utils/adminQueries'
 import { TrainerWithStats, ASSESSMENT_STRUCTURE } from '@/types'
 import { fetchTrainerAssessments } from '@/utils/trainerAssessments'
 import { exportToExcel, exportToCSV } from '@/utils/reporting'
 import { calculateCategoryAverages } from '@/utils/trainerStats'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import AdminEditAssessmentModal from '@/components/admin/AdminEditAssessmentModal'
 import toast from 'react-hot-toast'
 import { TrainerAssessmentWithDetails } from '@/types'
 
@@ -25,6 +26,7 @@ const TrainerPerformance = () => {
   const [trainerAssessments, setTrainerAssessments] = useState<TrainerAssessmentWithDetails[]>([])
   const [loadingAssessments, setLoadingAssessments] = useState(false)
   const [showTrainerModal, setShowTrainerModal] = useState(false)
+  const [editingAssessment, setEditingAssessment] = useState<TrainerAssessmentWithDetails | null>(null)
   const itemsPerPage = 20
 
   const [error, setError] = useState<string | null>(null)
@@ -551,8 +553,18 @@ const TrainerPerformance = () => {
                                 {new Date(assessment.assessment_date).toLocaleDateString()}
                               </div>
                             </div>
-                            <div className={`text-xl font-bold ${getScoreColor(assessment.average_score)}`}>
-                              {assessment.average_score.toFixed(2)}
+                            <div className="flex items-center gap-2">
+                              <div className={`text-xl font-bold ${getScoreColor(assessment.average_score)}`}>
+                                {assessment.average_score.toFixed(2)}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEditingAssessment(assessment)}
+                                className="p-2 rounded-lg hover:bg-primary-100 text-primary-600"
+                                title="Edit assessment (admin)"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
                           {/* Category Averages */}
@@ -621,6 +633,20 @@ const TrainerPerformance = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Admin Edit Assessment Modal */}
+                {editingAssessment && (
+                  <AdminEditAssessmentModal
+                    assessment={editingAssessment}
+                    onSave={async () => {
+                      if (selectedTrainer) {
+                        const assessments = await fetchTrainerAssessments(selectedTrainer.id)
+                        setTrainerAssessments(assessments)
+                      }
+                    }}
+                    onClose={() => setEditingAssessment(null)}
+                  />
+                )}
 
                 {/* Modal Footer */}
                 <div className="mt-6 flex items-center justify-end gap-3">

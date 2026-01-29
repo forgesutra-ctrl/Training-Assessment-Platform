@@ -39,34 +39,34 @@ const OnboardingTour = ({ onComplete }: OnboardingTourProps) => {
             disableBeacon: true,
           },
           {
-            target: '[data-tour="new-assessment-button"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">Create New Assessment</h3>
-                <p>Click here to assess a trainer from another team. You'll rate them on 6 key parameters.</p>
+                <p>Use the &quot;Assess Now&quot; button or the header to start a new assessment. You'll rate trainers on 6 key parameters.</p>
               </div>
             ),
-            placement: 'bottom',
+            placement: 'center',
           },
           {
-            target: '[data-tour="recent-assessments"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">View Your Assessments</h3>
-                <p>See all assessments you've submitted. Click "View Details" to see full feedback.</p>
+                <p>See all assessments you've submitted in the Recent Team Performance section. Click &quot;View&quot; to see full feedback.</p>
               </div>
             ),
-            placement: 'top',
+            placement: 'center',
           },
           {
-            target: '[data-tour="stats-cards"]',
+            target: 'body',
             content: (
               <div>
-                <h3 className="font-semibold mb-2">Quick Stats</h3>
-                <p>Track your assessment activity and see how many trainers you've assessed this month.</p>
+                <h3 className="font-semibold mb-2">Quick Stats &amp; Refresh</h3>
+                <p>Use the refresh button in the header to reload data. There is no auto-refresh—click when you want the latest.</p>
               </div>
             ),
-            placement: 'bottom',
+            placement: 'center',
           },
         ]
 
@@ -84,44 +84,44 @@ const OnboardingTour = ({ onComplete }: OnboardingTourProps) => {
             disableBeacon: true,
           },
           {
-            target: '[data-tour="performance-overview"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">Performance Overview</h3>
-                <p>See your current month average, total assessments, and best/worst performing parameters.</p>
+                <p>See your current month average, total assessments, and best/worst performing parameters at a glance.</p>
               </div>
             ),
-            placement: 'bottom',
+            placement: 'center',
           },
           {
-            target: '[data-tour="parameter-breakdown"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">Parameter Breakdown</h3>
-                <p>Track your performance across all 6 assessment parameters with visual progress bars.</p>
+                <p>Track your performance across all 6 assessment parameters. Use the refresh button to load the latest data.</p>
               </div>
             ),
-            placement: 'top',
+            placement: 'center',
           },
           {
-            target: '[data-tour="performance-trend"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">Performance Trend</h3>
-                <p>See how your performance has changed over time with this interactive chart.</p>
+                <p>See how your performance has changed over time. Data refreshes only when you click the refresh button.</p>
               </div>
             ),
-            placement: 'top',
+            placement: 'center',
           },
           {
-            target: '[data-tour="assessment-history"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">Assessment History</h3>
-                <p>View all your past assessments and detailed feedback from managers.</p>
+                <p>View all your past assessments and detailed feedback from managers in the activity feed and sections below.</p>
               </div>
             ),
-            placement: 'top',
+            placement: 'center',
           },
         ]
 
@@ -139,34 +139,34 @@ const OnboardingTour = ({ onComplete }: OnboardingTourProps) => {
             disableBeacon: true,
           },
           {
-            target: '[data-tour="admin-tabs"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">Navigation Tabs</h3>
-                <p>Switch between different sections: Overview, Trainer Performance, User Management, and more.</p>
+                <p>Use the left sidebar to switch between Overview, Trainer Performance, User Management, and more.</p>
               </div>
             ),
-            placement: 'bottom',
+            placement: 'center',
           },
           {
-            target: '[data-tour="platform-stats"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">Platform Statistics</h3>
-                <p>Monitor overall platform health, total assessments, and average ratings.</p>
+                <p>Monitor overall platform health, total assessments, and average ratings on the overview.</p>
               </div>
             ),
-            placement: 'bottom',
+            placement: 'center',
           },
           {
-            target: '[data-tour="user-management"]',
+            target: 'body',
             content: (
               <div>
                 <h3 className="font-semibold mb-2">User Management</h3>
-                <p>Add, edit, and manage all users. Bulk upload via CSV or add individually.</p>
+                <p>Add, edit, and manage all users via User Management. Use the refresh button to reload data when needed.</p>
               </div>
             ),
-            placement: 'top',
+            placement: 'center',
           },
         ]
 

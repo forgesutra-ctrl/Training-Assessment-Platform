@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Plus, Save, Download, Settings, BarChart3, LineChart, PieChart, TrendingUp, X } from 'lucide-react'
-import { fetchAllTrainersWithStats, fetchMonthlyTrends } from '@/utils/adminQueries'
-import { supabase } from '@/lib/supabase'
+import { fetchAllTrainersWithStats, fetchMonthlyTrends, fetchQuarterlyData } from '@/utils/adminQueries'
 import { exportToExcel, exportToCSV } from '@/utils/reporting'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
@@ -26,6 +25,9 @@ import {
   Radar,
 } from 'recharts'
 
+/** Time period for filtering chart data */
+export type DataStudioTimePeriod = 'all-time' | 'last-12-months' | 'last-6-months' | 'ytd' | 'quarter'
+
 interface ChartConfig {
   id: string
   type: 'line' | 'bar' | 'pie' | 'radar' | 'heatmap' | 'scatter' | 'funnel' | 'gauge'
@@ -36,31 +38,81 @@ interface ChartConfig {
   filters?: Record<string, any>
 }
 
+const TIME_PERIOD_OPTIONS: { value: DataStudioTimePeriod; label: string }[] = [
+  { value: 'all-time', label: 'All time' },
+  { value: 'last-12-months', label: 'Last 12 months' },
+  { value: 'last-6-months', label: 'Last 6 months' },
+  { value: 'ytd', label: 'This year (YTD)' },
+  { value: 'quarter', label: 'Current quarter (Q1/Q2/Q3/Q4)' },
+]
+
+function SettingsModal({
+  timePeriod,
+  onClose,
+  onApply,
+  options,
+}: {
+  timePeriod: DataStudioTimePeriod
+  onClose: () => void
+  onApply: (period: DataStudioTimePeriod) => void
+  options: { value: DataStudioTimePeriod; label: string }[]
+}) {
+  const [pending, setPending] = useState<DataStudioTimePeriod>(timePeriod)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Data Studio Settings</h3>
+        <p className="text-sm text-gray-600 mb-4">Choose the time period used for all charts (trainer stats and trends).</p>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Time period</label>
+        <select
+          value={pending}
+          onChange={(e) => setPending(e.target.value as DataStudioTimePeriod)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <div className="flex justify-end gap-2 mt-6">
+          <button type="button" onClick={onClose} className="btn-secondary">Close</button>
+          <button type="button" onClick={() => onApply(pending)} className="btn-primary">Apply</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const DataStudio = () => {
   const [loading, setLoading] = useState(false)
   const [charts, setCharts] = useState<ChartConfig[]>([])
   const [availableData, setAvailableData] = useState<any>({})
   const [selectedChartType, setSelectedChartType] = useState<ChartConfig['type']>('line')
   const [showChartBuilder, setShowChartBuilder] = useState(false)
+  const [timePeriod, setTimePeriod] = useState<DataStudioTimePeriod>('all-time')
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
 
   useEffect(() => {
-    loadAvailableData()
-  }, [])
+    loadAvailableData(timePeriod)
+  }, [timePeriod])
 
   const [error, setError] = useState<string | null>(null)
 
-  const loadAvailableData = async () => {
+  const loadAvailableData = async (period: DataStudioTimePeriod) => {
     try {
       setLoading(true)
       setError(null)
-      const [trainers, trends] = await Promise.all([
-        fetchAllTrainersWithStats('all-time'),
-        fetchMonthlyTrends(12),
+      const statsRange = period === 'quarter' ? 'quarter' : period === 'ytd' ? 'ytd' : period === 'all-time' ? 'all-time' : period
+      const monthsForTrends = period === 'quarter' ? 3 : period === 'last-6-months' ? 6 : 12
+      const [trainers, trends, quarterly] = await Promise.all([
+        fetchAllTrainersWithStats(statsRange),
+        fetchMonthlyTrends(monthsForTrends),
+        period === 'quarter' ? fetchQuarterlyData() : Promise.resolve([]),
       ])
 
       setAvailableData({
         trainers: trainers || [],
         monthlyTrends: trends || [],
+        quarterlyData: quarterly || [],
       })
     } catch (error: any) {
       console.error('Error loading data:', error)
@@ -100,7 +152,49 @@ const DataStudio = () => {
     toast.success('Report saved successfully')
   }
 
-  const handleExport = async (format: 'excel' | 'pdf' | 'csv') => {
+  /** Build the underlying table data for a chart (for Excel export) */
+  const getChartDataForExport = (chart: ChartConfig): any[] => {
+    const trainers = availableData.trainers || []
+    const monthlyTrends = availableData.monthlyTrends || []
+    switch (chart.type) {
+      case 'line':
+        return monthlyTrends.map((t: any) => ({
+          Month: t.month,
+          'Average Score': t.average_rating ?? 0,
+          'Total Assessments': t.assessment_count ?? 0,
+        }))
+      case 'bar':
+        return trainers.slice(0, 10).map((t: any) => ({
+          Trainer: (t.full_name || '').length > 15 ? (t.full_name || '').substring(0, 15) + '...' : (t.full_name || ''),
+          'All-Time Avg': t.all_time_avg ?? 0,
+          'Month Avg': t.current_month_avg ?? 0,
+        }))
+      case 'pie': {
+        const teamCounts: Record<string, number> = {}
+        trainers.forEach((t: any) => {
+          const team = t.team_name || 'No Team'
+          teamCounts[team] = (teamCounts[team] || 0) + 1
+        })
+        return Object.entries(teamCounts).map(([name, value]) => ({ Team: name, Count: value }))
+      }
+      case 'radar': {
+        const top = trainers[0]
+        if (!top) return []
+        return [
+          { Subject: 'Readiness', Score: top.all_time_avg ?? 0 },
+          { Subject: 'Communication', Score: top.all_time_avg ?? 0 },
+          { Subject: 'Domain', Score: top.all_time_avg ?? 0 },
+          { Subject: 'Knowledge', Score: top.all_time_avg ?? 0 },
+          { Subject: 'People Mgmt', Score: top.all_time_avg ?? 0 },
+          { Subject: 'Technical', Score: top.all_time_avg ?? 0 },
+        ]
+      }
+      default:
+        return [{ 'Chart Type': chart.type, Title: chart.title, 'Data Source': chart.dataSource }]
+    }
+  }
+
+  const handleExport = async (format: 'excel' | 'csv') => {
     try {
       if (charts.length === 0) {
         toast.error('No charts to export')
@@ -110,7 +204,6 @@ const DataStudio = () => {
       toast.loading(`Exporting to ${format.toUpperCase()}...`, { id: 'export' })
 
       if (format === 'csv') {
-        // Export chart data as CSV
         const csvData = charts.map((chart) => ({
           'Chart Type': chart.type,
           'Chart Title': chart.title,
@@ -118,23 +211,25 @@ const DataStudio = () => {
         }))
         exportToCSV(csvData, `data_studio_${new Date().toISOString().split('T')[0]}`)
         toast.success('Charts exported to CSV', { id: 'export' })
-      } else if (format === 'excel') {
-        // Export chart data as Excel
+      } else {
         const excelData: Record<string, any[]> = {}
+        const summaryRows = charts.map((c, i) => ({
+          '#': i + 1,
+          'Chart Type': c.type,
+          Title: c.title,
+          'Data Source': c.dataSource,
+        }))
+        excelData['Summary'] = summaryRows
         charts.forEach((chart, index) => {
-          excelData[`Chart ${index + 1} - ${chart.title}`] = [
-            { 'Chart Type': chart.type, 'Title': chart.title, 'Data Source': chart.dataSource },
-          ]
+          const tableData = getChartDataForExport(chart)
+          excelData[`Chart ${index + 1} - ${chart.title}`] = tableData.length > 0 ? tableData : [{ Note: 'No data for this chart' }]
         })
         await exportToExcel(excelData, `data_studio_${new Date().toISOString().split('T')[0]}`)
-        toast.success('Charts exported to Excel', { id: 'export' })
-      } else {
-        // PDF export would require a library like jsPDF
-        toast.error('PDF export coming soon', { id: 'export' })
+        toast.success('Exported to Excel (tables + chart data)', { id: 'export' })
       }
     } catch (error: any) {
       console.error('Error exporting:', error)
-      toast.error('Failed to export charts', { id: 'export' })
+      toast.error('Failed to export', { id: 'export' })
     }
   }
 
@@ -309,7 +404,7 @@ const DataStudio = () => {
         <button
           onClick={() => {
             setError(null)
-            loadAvailableData()
+            loadAvailableData(timePeriod)
           }}
           className="btn-primary"
         >
@@ -322,14 +417,22 @@ const DataStudio = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Data Visualization Studio</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Build custom reports and visualizations with drag-and-drop
+            Build custom reports and visualizations. Time period: {TIME_PERIOD_OPTIONS.find((o) => o.value === timePeriod)?.label ?? timePeriod}.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="btn-secondary flex items-center gap-2"
+            title="Filter by time period (months, quarters, all time)"
+          >
+            <Settings className="w-5 h-5" />
+            Settings
+          </button>
           <button
             onClick={() => setShowChartBuilder(true)}
             className="btn-primary flex items-center gap-2"
@@ -342,14 +445,29 @@ const DataStudio = () => {
             Save Report
           </button>
           <button
-            onClick={() => handleExport('pdf')}
+            onClick={() => handleExport('excel')}
             className="btn-secondary flex items-center gap-2"
+            title="Download as Excel (tables and chart data)"
           >
             <Download className="w-5 h-5" />
-            Export
+            Export to Excel
           </button>
         </div>
       </div>
+
+      {/* Settings modal: time period filter */}
+      {showSettingsModal && (
+        <SettingsModal
+          timePeriod={timePeriod}
+          onClose={() => setShowSettingsModal(false)}
+          onApply={(period) => {
+            setTimePeriod(period)
+            setShowSettingsModal(false)
+            toast.success('Settings applied')
+          }}
+          options={TIME_PERIOD_OPTIONS}
+        />
+      )}
 
       {/* Chart Builder Modal */}
       {showChartBuilder && (
@@ -408,7 +526,11 @@ const DataStudio = () => {
                   >
                     <X className="w-5 h-5" />
                   </button>
-                  <button className="text-gray-400 hover:text-gray-600">
+                  <button
+                    onClick={() => setShowSettingsModal(true)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Time period and filters (applies to all charts)"
+                  >
                     <Settings className="w-5 h-5" />
                   </button>
                 </div>

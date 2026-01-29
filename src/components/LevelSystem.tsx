@@ -27,14 +27,8 @@ const LevelSystem = () => {
 
     try {
       setLoading(true)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LevelSystem.tsx:30',message:'Before fetchUserXP and fetchXPHistory',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       const [xp, history] = await Promise.all([
         fetchUserXP(user.id).catch((error: any) => {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LevelSystem.tsx:33',message:'fetchUserXP error caught',data:{errorCode:error?.code,errorStatus:error?.status,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           // If table doesn't exist, RLS blocks access, or 403/406 errors, return null
           if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
             console.warn('XP table not accessible or not found:', error.message)
@@ -43,9 +37,6 @@ const LevelSystem = () => {
           throw error
         }),
         fetchXPHistory(user.id, 10).catch((error: any) => {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LevelSystem.tsx:42',message:'fetchXPHistory error caught',data:{errorCode:error?.code,errorStatus:error?.status,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           // If table doesn't exist, RLS blocks access, or 403/406 errors, return empty array
           if (error.code === 'PGRST116' || error.code === '42P01' || error.status === 403 || error.status === 406 || error.message?.includes('relation') || error.message?.includes('permission')) {
             console.warn('XP history table not accessible or not found:', error.message)
@@ -54,9 +45,6 @@ const LevelSystem = () => {
           throw error
         }),
       ])
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LevelSystem.tsx:50',message:'After fetchUserXP and fetchXPHistory',data:{hasXp:!!xp,hasHistory:!!history,historyLength:history?.length,xpTotalXp:xp?.total_xp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       setXPData(xp)
       setXPHistory(history || [])
 

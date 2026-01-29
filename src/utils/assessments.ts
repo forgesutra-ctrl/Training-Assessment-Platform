@@ -1,52 +1,42 @@
 import { supabase } from '@/lib/supabase'
 import { AssessmentWithDetails } from '@/types'
 import { calculateAssessmentAverage } from '@/utils/trainerStats'
+import { getEligibleTrainerIdsForAssessor } from '@/utils/assessorAssesseeEligibility'
 
 /**
- * Fetch eligible trainers for assessment (not direct reports)
+ * Fetch eligible trainers for assessment.
+ * Uses rule-based + admin overrides: no self, no direct/indirect reportees; allow/block overrides apply.
  */
 export const fetchEligibleTrainers = async (managerId: string) => {
-  // Fetch trainers first
+  const eligibleIds = await getEligibleTrainerIdsForAssessor(managerId)
+  if (eligibleIds.length === 0) return []
+
   const { data: trainers, error: trainersError } = await supabase
     .from('profiles')
     .select('id, full_name, team_id')
-    .eq('role', 'trainer')
-    .neq('reporting_manager_id', managerId)
+    .in('id', eligibleIds)
     .order('full_name')
 
   if (trainersError) throw trainersError
-  
-  if (!trainers || trainers.length === 0) {
-    return []
-  }
+  if (!trainers || trainers.length === 0) return []
 
-  // Fetch teams separately
   const teamIds = [...new Set(trainers.map((t: any) => t.team_id).filter(Boolean))]
   let teamMap = new Map<string, any>()
-  
   if (teamIds.length > 0) {
-    let query = supabase.from('teams').select('id, team_name')
+    const query = supabase.from('teams').select('id, team_name')
     const { data: teams, error: teamsError } = teamIds.length === 1
       ? await query.eq('id', teamIds[0])
       : await query.in('id', teamIds)
-    
     if (!teamsError && teams) {
-      teams.forEach((team: any) => {
-        teamMap.set(team.id, team)
-      })
+      const arr = Array.isArray(teams) ? teams : [teams]
+      arr.forEach((team: any) => teamMap.set(team.id, team))
     }
   }
-  
-  // Format the data
-  const formatted = trainers.map((trainer: any) => {
+
+  return trainers.map((trainer: any) => {
     const team = trainer.team_id ? teamMap.get(trainer.team_id) : null
-    return {
-      ...trainer,
-      team_name: team?.team_name || 'No Team',
-    }
+    return { ...trainer, team_name: team?.team_name || 'No Team' }
   })
-  
-  return formatted
 }
 
 /**
@@ -79,16 +69,10 @@ export const fetchManagerAssessments = async (
 
   // Fetch trainer profiles (only if we have trainer IDs)
   let trainerProfiles: any[] = []
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assessments.ts:82',message:'Before trainer fetch',data:{trainerIdsCount:trainerIds.length,trainerIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
   if (trainerIds.length > 0) {
     let query = supabase.from('profiles').select('id, full_name')
     if (trainerIds.length === 1) {
       const { data, error } = await query.eq('id', trainerIds[0])
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assessments.ts:86',message:'After trainer eq query',data:{hasData:!!data,hasError:!!error,errorStatus:error?.status,errorCode:error?.code,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       if (error) {
         console.error('Error fetching trainer profiles:', error)
       } else {
@@ -96,9 +80,6 @@ export const fetchManagerAssessments = async (
       }
     } else {
       const { data, error } = await query.in('id', trainerIds)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assessments.ts:93',message:'After trainer in query',data:{hasData:!!data,hasError:!!error,errorStatus:error?.status,errorCode:error?.code,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       if (error) {
         console.error('Error fetching trainer profiles:', error)
       } else {
@@ -230,4 +211,15 @@ export const fetchAssessmentDetails = async (
     assessor_name: assessor?.full_name || 'Unknown Assessor',
     average_score: average,
   }
+}
+
+/**
+ * Update an assessment (admin only). Assessors cannot edit after submit.
+ */
+export const updateAssessment = async (
+  assessmentId: string,
+  updates: Partial<Record<string, number | string | null>>
+): Promise<void> => {
+  const { error } = await supabase.from('assessments').update(updates).eq('id', assessmentId)
+  if (error) throw error
 }

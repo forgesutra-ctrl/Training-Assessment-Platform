@@ -26,9 +26,6 @@ const ManagerDashboard = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerDashboard.tsx:27',message:'loadData called',data:{hasUser:!!user,hasProfile:!!profile,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       // Don't wait for profile - load data as soon as we have user
       if (!user) {
         setLoading(false)
@@ -37,16 +34,10 @@ const ManagerDashboard = () => {
 
       try {
         setLoading(true)
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerDashboard.tsx:36',message:'Before Promise.all',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         const [assessmentsData, statsData] = await Promise.all([
           fetchManagerAssessments(user.id, 10),
           fetchMonthlyStats(user.id),
         ])
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/ac6e3676-a7af-4765-923d-9db43db4bf92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManagerDashboard.tsx:41',message:'After Promise.all',data:{assessmentsCount:assessmentsData?.length,hasStats:!!statsData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
 
         setAssessments(assessmentsData)
         setStats(statsData)

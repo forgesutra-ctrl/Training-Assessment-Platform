@@ -60,7 +60,7 @@ export const fetchPlatformStats = async (): Promise<PlatformStats> => {
  * Fetch all trainers with comprehensive statistics
  */
 export const fetchAllTrainersWithStats = async (
-  dateRange: 'month' | 'quarter' | 'ytd' | 'all-time' = 'all-time'
+  dateRange: 'month' | 'quarter' | 'ytd' | 'all-time' | 'last-12-months' | 'last-6-months' = 'all-time'
 ): Promise<TrainerWithStats[]> => {
   const now = new Date()
   let startDate: Date
@@ -69,14 +69,22 @@ export const fetchAllTrainersWithStats = async (
     case 'month':
       startDate = new Date(now.getFullYear(), now.getMonth(), 1)
       break
-    case 'quarter':
+    case 'quarter': {
       const quarter = Math.floor(now.getMonth() / 3)
       startDate = new Date(now.getFullYear(), quarter * 3, 1)
       break
+    }
     case 'ytd':
       startDate = new Date(now.getFullYear(), 0, 1)
       break
+    case 'last-12-months':
+      startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1)
+      break
+    case 'last-6-months':
+      startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1)
+      break
     case 'all-time':
+    default:
       startDate = new Date(0) // Beginning of time
       break
   }

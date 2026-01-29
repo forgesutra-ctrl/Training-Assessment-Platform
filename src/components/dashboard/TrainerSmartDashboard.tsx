@@ -5,6 +5,7 @@ import { getTrainerRecommendations, Recommendation } from '@/utils/recommendatio
 import { fetchTrainerAssessments } from '@/utils/trainerAssessments'
 import { TrainerAssessmentWithDetails, ASSESSMENT_STRUCTURE } from '@/types'
 import { calculateCategoryAveragesAcrossAssessments } from '@/utils/trainerStats'
+import { SHOW_PEER_AND_LEADERBOARD } from '@/constants/featureFlags'
 import ActionRequiredWidget from './ActionRequiredWidget'
 import ActivityFeed from './ActivityFeed'
 import DataRefresh from './DataRefresh'
@@ -128,7 +129,7 @@ const TrainerSmartDashboard = () => {
           <h2 className="text-2xl font-bold text-gray-900">Welcome back, {profile?.full_name}!</h2>
           <p className="text-sm text-gray-600 mt-1">Your performance at a glance</p>
         </div>
-        <DataRefresh onRefresh={loadDashboardData} autoRefreshInterval={30} />
+        <DataRefresh onRefresh={loadDashboardData} />
       </div>
 
       {/* Performance at a Glance */}
@@ -159,16 +160,18 @@ const TrainerSmartDashboard = () => {
           </div>
         </div>
 
-        <div className="card bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <div className="flex items-center gap-2 mb-2">
-            <Users className="w-5 h-5 text-purple-600" />
-            <span className="text-sm text-gray-600">Peer Comparison</span>
+        {SHOW_PEER_AND_LEADERBOARD && (
+          <div className="card bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Users className="w-5 h-5 text-purple-600" />
+              <span className="text-sm text-gray-600">Peer Comparison</span>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">
+              Top {performanceData.percentile}%
+            </div>
+            <div className="text-sm text-gray-600">You're performing above average</div>
           </div>
-          <div className="text-3xl font-bold text-gray-900 mb-1">
-            Top {performanceData.percentile}%
-          </div>
-          <div className="text-sm text-gray-600">You're performing above average</div>
-        </div>
+        )}
 
         <div className="card bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <div className="flex items-center gap-2 mb-2">
@@ -223,26 +226,37 @@ const TrainerSmartDashboard = () => {
         )}
       </div>
 
-      {/* Recommendations */}
-      {recommendations.length > 0 && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-4">
-            <BookOpen className="w-5 h-5 text-primary-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Learning Recommendations</h3>
-          </div>
+      {/* Learning Recommendations (AI: weakest areas + assessment overall comments) */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-2">
+          <BookOpen className="w-5 h-5 text-primary-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Learning Recommendations</h3>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Based on your least performed areas and feedback from your assessments (overall comments).
+        </p>
+        {recommendations.length > 0 ? (
           <div className="space-y-3">
             {recommendations.map((rec) => (
               <div
                 key={rec.id}
-                className="p-3 bg-gray-50 rounded-lg border border-gray-200"
+                className={
+                  rec.id === 'least-performed-areas'
+                    ? 'p-4 bg-amber-50 rounded-lg border border-amber-200'
+                    : 'p-3 bg-gray-50 rounded-lg border border-gray-200'
+                }
               >
                 <p className="font-medium text-gray-900">{rec.title}</p>
                 <p className="text-sm text-gray-600 mt-1">{rec.description}</p>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-gray-500 italic">
+            Complete at least one assessment to see least performed areas and AI-powered learning recommendations based on your feedback.
+          </p>
+        )}
+      </div>
 
       {/* Activity Feed */}
       <ActivityFeed limit={5} showFilters={false} />

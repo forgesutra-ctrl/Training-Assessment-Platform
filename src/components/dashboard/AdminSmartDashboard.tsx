@@ -103,7 +103,7 @@ const AdminSmartDashboard = () => {
           <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
           <p className="text-sm text-gray-600 mt-1">Platform overview and critical alerts</p>
         </div>
-        <DataRefresh onRefresh={loadDashboardData} autoRefreshInterval={30} />
+        <DataRefresh onRefresh={loadDashboardData} />
       </div>
 
       {/* Critical Alerts */}

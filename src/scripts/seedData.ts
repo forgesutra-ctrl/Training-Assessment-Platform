@@ -273,186 +273,220 @@ async function createUsers() {
   return userIdMap
 }
 
+/** One full 21-parameter assessment row for seed (all fields required for DB) */
+type SeedAssessmentRow = {
+  trainer_id: string
+  assessor_id: string
+  assessment_date: string
+  logs_in_early: number
+  logs_in_early_comments: string
+  video_always_on: number
+  video_always_on_comments: string
+  minimal_disturbance: number
+  minimal_disturbance_comments: string
+  presentable_prompt: number
+  presentable_prompt_comments: string
+  ready_with_tools: number
+  ready_with_tools_comments: string
+  adequate_knowledge: number
+  adequate_knowledge_comments: string
+  simplifies_topics: number
+  simplifies_topics_comments: string
+  encourages_participation: number
+  encourages_participation_comments: string
+  handles_questions: number
+  handles_questions_comments: string
+  provides_context: number
+  provides_context_comments: string
+  maintains_attention: number
+  maintains_attention_comments: string
+  uses_interactive_tools: number
+  uses_interactive_tools_comments: string
+  assesses_learning: number
+  assesses_learning_comments: string
+  clear_speech: number
+  clear_speech_comments: string
+  minimal_grammar_errors: number
+  minimal_grammar_errors_comments: string
+  professional_tone: number
+  professional_tone_comments: string
+  manages_teams_well: number
+  manages_teams_well_comments: string
+  efficient_tool_switching: number
+  efficient_tool_switching_comments: string
+  audio_video_clarity: number
+  audio_video_clarity_comments: string
+  session_recording: number
+  session_recording_comments: string
+  survey_assignment: number
+  survey_assignment_comments: string
+  overall_comments: string
+}
+
+/** Build one assessment row. Variant: high (5s), mixed (3–4), low (2–3). Overall comment always ≥20 chars. */
+function buildAssessmentRow(
+  trainerId: string,
+  assessorId: string,
+  assessmentDate: string,
+  variant: 'high' | 'mixed' | 'low'
+): SeedAssessmentRow {
+  const c = (v: number, comment: string) => ({ v, comment })
+  const high = (comment: string) => c(5, comment)
+  const mid = (comment: string) => c(4, comment)
+  const low = (comment: string) => c(3, comment)
+  const low2 = (comment: string) => c(2, comment)
+
+  let cat1 = [high('Trainer logged in early and was fully set up before participants joined.'), high('Camera stayed on throughout and helped maintain strong presence and connection.'), high('Background was quiet and distraction free for the entire training block.'), high('Trainer looked professional and started the session exactly on time.'), high('All tools and slides were ready with no fumbling or delays at any point.')]
+  let cat2 = [high('Demonstrated excellent subject knowledge with confident, accurate explanations.'), high('Broke complex topics into simple, memorable chunks for every participant.'), high('Frequently invited input and kept everyone actively contributing to the session.'), high('Handled all questions calmly and clearly, even unexpected edge cases.'), high('Connected content to real business scenarios and current project needs.')]
+  let cat3 = [high('Kept attention high from start to finish using pace, stories, and variety.'), high('Used polls, quizzes, and chat activities that kept learners fully engaged.'), high('Regularly checked understanding and adjusted pace based on participant responses.'), high('Spoke clearly with a comfortable speed and excellent pronunciation throughout.')]
+  let cat4 = [high('No noticeable grammar issues; language was clear and easy to follow.'), high('Tone stayed professional, energetic, and encouraging for the entire session.'), high('Managed the virtual room smoothly, including breakout groups and chat traffic.')]
+  let cat5 = [high('Switched between slides, tools, and demos with fluid, confident transitions.'), high('Audio and video remained crisp and stable from start to finish of the session.'), high('Recording was started promptly and confirmed to participants right away.'), high('End of session survey was launched smoothly and responses were briefly reviewed.')]
+  let overall = 'Outstanding delivery across all dimensions. This session is an excellent benchmark for others.'
+
+  if (variant === 'mixed') {
+    cat1 = [mid('Joined a few minutes early and completed most of the setup in advance.'), mid('Video was on for most of the session with only brief off-camera moments.'), mid('Minor background noise at times but nothing that blocked understanding.'), mid('Looked presentable and maintained a friendly, professional appearance.'), mid('Slides and tools were ready; only one short delay when switching content.')]
+    cat2 = [mid('Good knowledge of the core content with a few deeper questions deferred.'), low('Some complex ideas could be simplified further for new participants.'), mid('Encouraged participation but a few quieter learners could be drawn in more.'), mid('Answered most questions clearly and followed up where extra detail was needed.'), low('Provided some business context but could connect more to current projects.')]
+    cat3 = [mid('Maintained interest well for most of the session with only slight dips.'), low('Used a poll and one activity; could add one more interactive exercise.'), mid('Checked understanding at key milestones and corrected misconceptions.'), mid('Generally clear speech with only occasional pacing that was a bit fast.')]
+    cat4 = [mid('Very few grammar issues; overall language quality was more than acceptable.'), mid('Tone stayed professional and friendly, with occasional drops in energy.'), low('Handled Teams tools adequately but could be more proactive in managing chat.')]
+    cat5 = [mid('Switched between tools reasonably well with only one slightly awkward handoff.'), mid('Audio and video quality were strong with only a brief connection glitch.'), low('Recording started a few minutes late but captured the majority of content.'), low('Survey was mentioned verbally but link could be highlighted more clearly.')]
+    overall = 'Solid session with clear strengths. Focus improvement on simplifying explanations and adding one more interactive element.'
+  } else if (variant === 'low') {
+    cat1 = [low('Joined on time but setup extended slightly into the first few minutes.'), low('Video was on during explanations but occasionally turned off during demos.'), mid('Environment was generally quiet with one short interruption.'), low('Looked professional but opening felt a bit rushed and less welcoming.'), mid('Had most tools ready; a couple of links had to be located live.')]
+    cat2 = [high('Extremely strong technical and domain knowledge; clear subject expert.'), low('Explanations were accurate but could be simplified for new learners.'), low('Invited questions but did not always directly encourage quieter voices.'), mid('Handled questions technically very well with deep, detailed answers.'), mid('Provided strong technical context and architecture level explanations.')]
+    cat3 = [low('Attention dipped in the middle section; content was dense and detailed.'), low2('No formal polls or activities; could strongly benefit from adding them.'), low('Checked understanding a couple of times but could do this more regularly.'), mid('Speech was clear and steady, though occasionally very technical in wording.')]
+    cat4 = [mid('Language was generally clean with only minor phrasing issues.'), mid('Tone stayed calm and professional but could use a bit more warmth.'), low('Managed the room acceptably but could better balance fast and slower learners.')]
+    cat5 = [high('Tool switching was extremely efficient; moved between complex systems smoothly.'), high('Audio and video were excellent and stable even during heavy screen sharing.'), mid('Recording was started after the intro, missing only a short welcome segment.'), low('Survey was posted in chat but not strongly highlighted or explained.')]
+    overall = 'Brilliant technical depth and very strong demos. Next step is to invest in engagement tools and simpler explanations for junior audiences.'
+  }
+
+  return {
+    trainer_id: trainerId,
+    assessor_id: assessorId,
+    assessment_date: assessmentDate,
+    logs_in_early: cat1[0].v,
+    logs_in_early_comments: cat1[0].comment,
+    video_always_on: cat1[1].v,
+    video_always_on_comments: cat1[1].comment,
+    minimal_disturbance: cat1[2].v,
+    minimal_disturbance_comments: cat1[2].comment,
+    presentable_prompt: cat1[3].v,
+    presentable_prompt_comments: cat1[3].comment,
+    ready_with_tools: cat1[4].v,
+    ready_with_tools_comments: cat1[4].comment,
+    adequate_knowledge: cat2[0].v,
+    adequate_knowledge_comments: cat2[0].comment,
+    simplifies_topics: cat2[1].v,
+    simplifies_topics_comments: cat2[1].comment,
+    encourages_participation: cat2[2].v,
+    encourages_participation_comments: cat2[2].comment,
+    handles_questions: cat2[3].v,
+    handles_questions_comments: cat2[3].comment,
+    provides_context: cat2[4].v,
+    provides_context_comments: cat2[4].comment,
+    maintains_attention: cat3[0].v,
+    maintains_attention_comments: cat3[0].comment,
+    uses_interactive_tools: cat3[1].v,
+    uses_interactive_tools_comments: cat3[1].comment,
+    assesses_learning: cat3[2].v,
+    assesses_learning_comments: cat3[2].comment,
+    clear_speech: cat3[3].v,
+    clear_speech_comments: cat3[3].comment,
+    minimal_grammar_errors: cat4[0].v,
+    minimal_grammar_errors_comments: cat4[0].comment,
+    professional_tone: cat4[1].v,
+    professional_tone_comments: cat4[1].comment,
+    manages_teams_well: cat4[2].v,
+    manages_teams_well_comments: cat4[2].comment,
+    efficient_tool_switching: cat5[0].v,
+    efficient_tool_switching_comments: cat5[0].comment,
+    audio_video_clarity: cat5[1].v,
+    audio_video_clarity_comments: cat5[1].comment,
+    session_recording: cat5[2].v,
+    session_recording_comments: cat5[2].comment,
+    survey_assignment: cat5[3].v,
+    survey_assignment_comments: cat5[3].comment,
+    overall_comments: overall,
+  }
+}
+
 async function createAssessments(userIdMap: Map<string, string>) {
-  console.log('\n📝 Creating sample assessments with 21 parameters...')
+  console.log('\n📝 Creating one year of assessments (21 parameters, all eligible pairs)...')
 
   const manager1Id = userIdMap.get('manager1@test.com')!
   const manager2Id = userIdMap.get('manager2@test.com')!
   const trainer1Id = userIdMap.get('trainer1@test.com')!
+  const trainer2Id = userIdMap.get('trainer2@test.com')!
+  const trainer3Id = userIdMap.get('trainer3@test.com')!
   const trainer4Id = userIdMap.get('trainer4@test.com')!
   const trainer5Id = userIdMap.get('trainer5@test.com')!
+  const trainer6Id = userIdMap.get('trainer6@test.com')!
 
-  // Assessment 1: Manager One (Sales) → Trainer Delta (Technical) - CROSS TEAM
-  const assessment1 = {
-    trainer_id: trainer4Id,
-    assessor_id: manager1Id,
-    assessment_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    // Category 1: Trainer Initial Readiness
-    logs_in_early: 5,
-    logs_in_early_comments: 'Trainer logged in early and was fully set up before participants joined.',
-    video_always_on: 5,
-    video_always_on_comments: 'Camera stayed on throughout and helped maintain strong presence and connection.',
-    minimal_disturbance: 5,
-    minimal_disturbance_comments: 'Background was quiet and distraction free for the entire training block.',
-    presentable_prompt: 5,
-    presentable_prompt_comments: 'Trainer looked professional and started the session exactly on time.',
-    ready_with_tools: 5,
-    ready_with_tools_comments: 'All tools and slides were ready with no fumbling or delays at any point.',
-    // Category 2: Trainer Expertise & Delivery
-    adequate_knowledge: 5,
-    adequate_knowledge_comments: 'Demonstrated excellent subject knowledge with confident, accurate explanations.',
-    simplifies_topics: 5,
-    simplifies_topics_comments: 'Broke complex topics into simple, memorable chunks for every participant.',
-    encourages_participation: 5,
-    encourages_participation_comments: 'Frequently invited input and kept everyone actively contributing to the session.',
-    handles_questions: 5,
-    handles_questions_comments: 'Handled all questions calmly and clearly, even unexpected edge cases.',
-    provides_context: 5,
-    provides_context_comments: 'Connected content to real business scenarios and current project needs.',
-    // Category 3: Participant Engagement & Interaction
-    maintains_attention: 5,
-    maintains_attention_comments: 'Kept attention high from start to finish using pace, stories, and variety.',
-    uses_interactive_tools: 5,
-    uses_interactive_tools_comments: 'Used polls, quizzes, and chat activities that kept learners fully engaged.',
-    assesses_learning: 5,
-    assesses_learning_comments: 'Regularly checked understanding and adjusted pace based on participant responses.',
-    clear_speech: 5,
-    clear_speech_comments: 'Spoke clearly with a comfortable speed and excellent pronunciation throughout.',
-    // Category 4: Communication Skills
-    minimal_grammar_errors: 5,
-    minimal_grammar_errors_comments: 'No noticeable grammar issues; language was clear and easy to follow.',
-    professional_tone: 5,
-    professional_tone_comments: 'Tone stayed professional, energetic, and encouraging for the entire session.',
-    manages_teams_well: 5,
-    manages_teams_well_comments: 'Managed the virtual room smoothly, including breakout groups and chat traffic.',
-    // Category 5: Technical Acumen
-    efficient_tool_switching: 5,
-    efficient_tool_switching_comments: 'Switched between slides, tools, and demos with fluid, confident transitions.',
-    audio_video_clarity: 5,
-    audio_video_clarity_comments: 'Audio and video remained crisp and stable from start to finish of the session.',
-    session_recording: 5,
-    session_recording_comments: 'Recording was started promptly and confirmed to participants right away.',
-    survey_assignment: 5,
-    survey_assignment_comments: 'End of session survey was launched smoothly and responses were briefly reviewed.',
-    overall_comments: 'Outstanding delivery across all dimensions. This session is an excellent benchmark for others.',
-  }
+  // Eligible pairs: Manager 1 (Sales) can assess T4,T5,T6 (Technical). Manager 2 (Technical) can assess T1,T2,T3 (Sales).
+  const pairs: [string, string][] = [
+    [manager1Id, trainer4Id],
+    [manager1Id, trainer5Id],
+    [manager1Id, trainer6Id],
+    [manager2Id, trainer1Id],
+    [manager2Id, trainer2Id],
+    [manager2Id, trainer3Id],
+  ]
 
-  // Assessment 2: Manager One (Sales) → Trainer Epsilon (Technical) - CROSS TEAM
-  const assessment2 = {
-    trainer_id: trainer5Id,
-    assessor_id: manager1Id,
-    assessment_date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    logs_in_early: 4,
-    logs_in_early_comments: 'Joined a few minutes early and completed most of the setup in advance.',
-    video_always_on: 4,
-    video_always_on_comments: 'Video was on for most of the session with only brief off-camera moments.',
-    minimal_disturbance: 4,
-    minimal_disturbance_comments: 'Minor background noise at times but nothing that blocked understanding.',
-    presentable_prompt: 4,
-    presentable_prompt_comments: 'Looked presentable and maintained a friendly, professional appearance.',
-    ready_with_tools: 4,
-    ready_with_tools_comments: 'Slides and tools were ready; only one short delay when switching content.',
-    adequate_knowledge: 4,
-    adequate_knowledge_comments: 'Good knowledge of the core content with a few deeper questions deferred.',
-    simplifies_topics: 3,
-    simplifies_topics_comments: 'Some complex ideas could be simplified further for new participants.',
-    encourages_participation: 4,
-    encourages_participation_comments: 'Encouraged participation but a few quieter learners could be drawn in more.',
-    handles_questions: 4,
-    handles_questions_comments: 'Answered most questions clearly and followed up where extra detail was needed.',
-    provides_context: 3,
-    provides_context_comments: 'Provided some business context but could connect more to current projects.',
-    maintains_attention: 4,
-    maintains_attention_comments: 'Maintained interest well for most of the session with only slight dips.',
-    uses_interactive_tools: 3,
-    uses_interactive_tools_comments: 'Used a poll and one activity; could add one more interactive exercise.',
-    assesses_learning: 4,
-    assesses_learning_comments: 'Checked understanding at key milestones and corrected misconceptions.',
-    clear_speech: 4,
-    clear_speech_comments: 'Generally clear speech with only occasional pacing that was a bit fast.',
-    minimal_grammar_errors: 4,
-    minimal_grammar_errors_comments: 'Very few grammar issues; overall language quality was more than acceptable.',
-    professional_tone: 4,
-    professional_tone_comments: 'Tone stayed professional and friendly, with occasional drops in energy.',
-    manages_teams_well: 3,
-    manages_teams_well_comments: 'Handled Teams tools adequately but could be more proactive in managing chat.',
-    efficient_tool_switching: 4,
-    efficient_tool_switching_comments: 'Switched between tools reasonably well with only one slightly awkward handoff.',
-    audio_video_clarity: 4,
-    audio_video_clarity_comments: 'Audio and video quality were strong with only a brief connection glitch.',
-    session_recording: 3,
-    session_recording_comments: 'Recording started a few minutes late but captured the majority of content.',
-    survey_assignment: 3,
-    survey_assignment_comments: 'Survey was mentioned verbally but link could be highlighted more clearly.',
-    overall_comments: 'Solid session with clear strengths. Focus improvement on simplifying explanations and adding one more interactive element.',
-  }
+  const variants: ('high' | 'mixed' | 'low')[] = ['high', 'mixed', 'low']
+  const now = new Date()
+  const allRows: SeedAssessmentRow[] = []
 
-  // Assessment 3: Manager Two (Technical) → Trainer Alpha (Sales) - CROSS TEAM
-  const assessment3 = {
-    trainer_id: trainer1Id,
-    assessor_id: manager2Id,
-    assessment_date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    logs_in_early: 3,
-    logs_in_early_comments: 'Joined on time but setup extended slightly into the first few minutes.',
-    video_always_on: 3,
-    video_always_on_comments: 'Video was on during explanations but occasionally turned off during demos.',
-    minimal_disturbance: 4,
-    minimal_disturbance_comments: 'Environment was generally quiet with one short interruption.',
-    presentable_prompt: 3,
-    presentable_prompt_comments: 'Looked professional but opening felt a bit rushed and less welcoming.',
-    ready_with_tools: 4,
-    ready_with_tools_comments: 'Had most tools ready; a couple of links had to be located live.',
-    adequate_knowledge: 5,
-    adequate_knowledge_comments: 'Extremely strong technical and domain knowledge; clear subject expert.',
-    simplifies_topics: 3,
-    simplifies_topics_comments: 'Explanations were accurate but could be simplified for new learners.',
-    encourages_participation: 3,
-    encourages_participation_comments: 'Invited questions but did not always directly encourage quieter voices.',
-    handles_questions: 4,
-    handles_questions_comments: 'Handled questions technically very well with deep, detailed answers.',
-    provides_context: 4,
-    provides_context_comments: 'Provided strong technical context and architecture level explanations.',
-    maintains_attention: 3,
-    maintains_attention_comments: 'Attention dipped in the middle section; content was dense and detailed.',
-    uses_interactive_tools: 2,
-    uses_interactive_tools_comments: 'No formal polls or activities; could strongly benefit from adding them.',
-    assesses_learning: 3,
-    assesses_learning_comments: 'Checked understanding a couple of times but could do this more regularly.',
-    clear_speech: 4,
-    clear_speech_comments: 'Speech was clear and steady, though occasionally very technical in wording.',
-    minimal_grammar_errors: 4,
-    minimal_grammar_errors_comments: 'Language was generally clean with only minor phrasing issues.',
-    professional_tone: 4,
-    professional_tone_comments: 'Tone stayed calm and professional but could use a bit more warmth.',
-    manages_teams_well: 3,
-    manages_teams_well_comments: 'Managed the room acceptably but could better balance fast and slower learners.',
-    efficient_tool_switching: 5,
-    efficient_tool_switching_comments: 'Tool switching was extremely efficient; moved between complex systems smoothly.',
-    audio_video_clarity: 5,
-    audio_video_clarity_comments: 'Audio and video were excellent and stable even during heavy screen sharing.',
-    session_recording: 4,
-    session_recording_comments: 'Recording was started after the intro, missing only a short welcome segment.',
-    survey_assignment: 3,
-    survey_assignment_comments: 'Survey was posted in chat but not strongly highlighted or explained.',
-    overall_comments: 'Brilliant technical depth and very strong demos. Next step is to invest in engagement tools and simpler explanations for junior audiences.',
-  }
-
-  const assessments = [assessment1, assessment2, assessment3]
-
-  for (const assessment of assessments) {
-    const { error } = await supabaseAdmin.from('assessments').insert(assessment)
-
-    if (error) {
-      // Check if it's a duplicate (safe to ignore)
-      if (error.code === '23505') {
-        console.log(`  ⚠️  Assessment already exists, skipping`)
-      } else {
-        console.error(`  ❌ Failed to create assessment:`, error.message)
+  for (let monthOffset = 0; monthOffset < 12; monthOffset++) {
+    let m = now.getMonth() - monthOffset
+    let y = now.getFullYear()
+    while (m < 0) {
+      m += 12
+      y -= 1
+    }
+    const daysInMonth = new Date(y, m + 1, 0).getDate()
+    const day1 = Math.min(5, daysInMonth)
+    const day2 = Math.min(18, daysInMonth)
+    if (day1 === day2) {
+      // ensure two different days
+      const d2 = day2 >= daysInMonth - 1 ? day2 - 1 : day2 + 1
+      const date1 = `${y}-${String(m + 1).padStart(2, '0')}-${String(day1).padStart(2, '0')}`
+      const date2 = `${y}-${String(m + 1).padStart(2, '0')}-${String(d2).padStart(2, '0')}`
+      for (let p = 0; p < pairs.length; p++) {
+        const [assessorId, trainerId] = pairs[p]
+        const v = variants[(monthOffset + p) % 3]
+        allRows.push(buildAssessmentRow(trainerId, assessorId, date1, v))
+        allRows.push(buildAssessmentRow(trainerId, assessorId, date2, v))
       }
     } else {
-      console.log(`  ✅ Created assessment with all 21 parameters`)
+      const date1 = `${y}-${String(m + 1).padStart(2, '0')}-${String(day1).padStart(2, '0')}`
+      const date2 = `${y}-${String(m + 1).padStart(2, '0')}-${String(day2).padStart(2, '0')}`
+      for (let p = 0; p < pairs.length; p++) {
+        const [assessorId, trainerId] = pairs[p]
+        const v = variants[(monthOffset + p) % 3]
+        allRows.push(buildAssessmentRow(trainerId, assessorId, date1, v))
+        allRows.push(buildAssessmentRow(trainerId, assessorId, date2, v))
+      }
     }
   }
+
+  const BATCH = 30
+  let inserted = 0
+  let failed = 0
+  for (let i = 0; i < allRows.length; i += BATCH) {
+    const batch = allRows.slice(i, i + BATCH)
+    const { error } = await supabaseAdmin.from('assessments').insert(batch)
+    if (error) {
+      for (const row of batch) {
+        const { error: err } = await supabaseAdmin.from('assessments').insert(row)
+        if (err) {
+          failed++
+          if (err.code !== '23505') console.error(`  ❌ Insert failed:`, err.message)
+        } else inserted++
+      }
+    } else {
+      inserted += batch.length
+    }
+  }
+  console.log(`  ✅ Inserted ${inserted} assessments (12 months × 6 pairs × 2 per month).${failed > 0 ? ` ${failed} failed.` : ''}`)
 }
 
 async function main() {
@@ -475,7 +509,7 @@ async function main() {
     console.log('  - 2 Teams created')
     console.log('  - 9 Users created (1 admin, 2 managers, 6 trainers)')
     console.log('  - 9 Profiles created')
-    console.log('  - 3 Assessments created (with all 21 parameters)')
+    console.log('  - ~144 Assessments created (1 year: 12 months × 6 pairs × 2 per month, 21 parameters + overall_comments)')
     console.log('\n🔐 Test Credentials:')
     console.log('  All users have password: Test@123456')
     console.log('  - admin1@test.com (Admin User)')
