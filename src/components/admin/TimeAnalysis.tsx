@@ -92,6 +92,18 @@ const TimeAnalysis = () => {
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b']
 
+  // Flatten category_averages for Recharts (no nested dataKey support)
+  const parameterChartData = monthlyTrends.map((t) => ({
+    month: t.month,
+    average_rating: t.average_rating,
+    assessment_count: t.assessment_count,
+    trainer_readiness: t.category_averages?.trainer_readiness ?? 0,
+    expertise_delivery: t.category_averages?.expertise_delivery ?? 0,
+    engagement_interaction: t.category_averages?.engagement_interaction ?? 0,
+    communication: t.category_averages?.communication ?? 0,
+    technical_acumen: t.category_averages?.technical_acumen ?? 0,
+  }))
+
   return (
     <div className="space-y-6">
       {/* Monthly Trends */}
@@ -161,11 +173,11 @@ const TimeAnalysis = () => {
         </ResponsiveContainer>
       </div>
 
-      {/* Parameter Trends */}
+      {/* Category performance over time (5 categories from 21-parameter schema) */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-6">Parameter Performance Over Time</h3>
         <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={monthlyTrends}>
+          <LineChart data={parameterChartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="month" stroke="#6b7280" />
             <YAxis domain={[0, 5]} stroke="#6b7280" />
@@ -179,45 +191,48 @@ const TimeAnalysis = () => {
             <Legend />
             <Line
               type="monotone"
-              dataKey="parameter_averages.trainers_readiness"
-              name="Trainer's Readiness"
+              dataKey="trainer_readiness"
+              name="Trainer Readiness"
               stroke="#6366f1"
               strokeWidth={2}
+              dot={{ r: 4 }}
+              connectNulls
             />
             <Line
               type="monotone"
-              dataKey="parameter_averages.communication_skills"
-              name="Communication Skills"
+              dataKey="expertise_delivery"
+              name="Expertise & Delivery"
               stroke="#8b5cf6"
               strokeWidth={2}
+              dot={{ r: 4 }}
+              connectNulls
             />
             <Line
               type="monotone"
-              dataKey="parameter_averages.domain_expertise"
-              name="Domain Expertise"
+              dataKey="engagement_interaction"
+              name="Engagement & Interaction"
               stroke="#ec4899"
               strokeWidth={2}
+              dot={{ r: 4 }}
+              connectNulls
             />
             <Line
               type="monotone"
-              dataKey="parameter_averages.knowledge_displayed"
-              name="Knowledge Displayed"
+              dataKey="communication"
+              name="Communication"
               stroke="#f59e0b"
               strokeWidth={2}
+              dot={{ r: 4 }}
+              connectNulls
             />
             <Line
               type="monotone"
-              dataKey="parameter_averages.people_management"
-              name="People Management"
+              dataKey="technical_acumen"
+              name="Technical Acumen"
               stroke="#10b981"
               strokeWidth={2}
-            />
-            <Line
-              type="monotone"
-              dataKey="parameter_averages.technical_skills"
-              name="Technical Skills"
-              stroke="#3b82f6"
-              strokeWidth={2}
+              dot={{ r: 4 }}
+              connectNulls
             />
           </LineChart>
         </ResponsiveContainer>
