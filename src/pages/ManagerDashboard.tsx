@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { FileText, Users, Star, Plus, LogOut, Menu, Eye, Calendar, User } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { useTimeSpentLogging } from '@/hooks/useTimeSpentLogging'
 import { fetchManagerAssessments, fetchMonthlyStats } from '@/utils/assessments'
 import { AssessmentWithDetails } from '@/types'
 import AssessmentDetails from '@/components/AssessmentDetails'
@@ -15,6 +16,7 @@ import toast from 'react-hot-toast'
 const ManagerDashboard = () => {
   const { user, profile, signOut } = useAuthContext()
   const navigate = useNavigate()
+  useTimeSpentLogging(profile?.role === 'manager' ? 'manager' : null, !!user)
   const [loading, setLoading] = useState(true)
   const [assessments, setAssessments] = useState<AssessmentWithDetails[]>([])
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentWithDetails | null>(null)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, TrendingUp, TrendingDown, Eye, Download, ChevronUp, ChevronDown, X, Pencil } from 'lucide-react'
-import { fetchAllTrainersWithStats } from '@/utils/adminQueries'
+import { Search, TrendingUp, TrendingDown, Eye, Download, ChevronUp, ChevronDown, X, Pencil, Clock } from 'lucide-react'
+import { fetchAllTrainersWithStats, fetchTimeSpentByRole, type TimeSpentByUser } from '@/utils/adminQueries'
 import { TrainerWithStats, ASSESSMENT_STRUCTURE } from '@/types'
 import { fetchTrainerAssessments } from '@/utils/trainerAssessments'
 import { exportToExcel, exportToCSV } from '@/utils/reporting'
@@ -13,9 +13,18 @@ import { TrainerAssessmentWithDetails } from '@/types'
 type SortField = keyof TrainerWithStats
 type SortDirection = 'asc' | 'desc'
 
+function formatTimeSpent(seconds: number): string {
+  if (seconds <= 0) return '—'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
 const TrainerPerformance = () => {
   const [loading, setLoading] = useState(true)
   const [trainers, setTrainers] = useState<TrainerWithStats[]>([])
+  const [timeSpent, setTimeSpent] = useState<Record<string, TimeSpentByUser>>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
   const [dateRange, setDateRange] = useState<'month' | 'quarter' | 'ytd' | 'all-time'>('all-time')
@@ -36,8 +45,12 @@ const TrainerPerformance = () => {
       try {
         setLoading(true)
         setError(null)
-        const data = await fetchAllTrainersWithStats(dateRange)
+        const [data, timeSpentData] = await Promise.all([
+          fetchAllTrainersWithStats(dateRange),
+          fetchTimeSpentByRole('trainer'),
+        ])
         setTrainers(data || [])
+        setTimeSpent(timeSpentData || {})
       } catch (error: any) {
         console.error('Error loading trainer data:', error)
         const errorMessage = error?.message || 'Failed to load trainer performance data'
@@ -363,6 +376,10 @@ const TrainerPerformance = () => {
                       <SortIcon field="total_assessments" />
                     </div>
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" title="Time spent on system (today / this week)">
+                    <Clock className="w-3.5 h-3.5 inline mr-1" />
+                    Time on system
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Trend
                   </th>
@@ -402,6 +419,17 @@ const TrainerPerformance = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{trainer.total_assessments}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-700">
+                        {timeSpent[trainer.id] ? (
+                          <span title={`Today: ${formatTimeSpent(timeSpent[trainer.id].today)} · Week: ${formatTimeSpent(timeSpent[trainer.id].thisWeek)} · Month: ${formatTimeSpent(timeSpent[trainer.id].thisMonth)} · All: ${formatTimeSpent(timeSpent[trainer.id].allTime)}`}>
+                            {formatTimeSpent(timeSpent[trainer.id].today)} today · {formatTimeSpent(timeSpent[trainer.id].thisWeek)} week
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {trainer.trend === 'up' ? (

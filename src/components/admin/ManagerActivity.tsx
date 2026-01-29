@@ -1,16 +1,25 @@
 import { useState, useEffect } from 'react'
-import { Activity, Calendar, Users, BarChart3 } from 'lucide-react'
-import { fetchManagerActivity, getCrossAssessmentMatrix } from '@/utils/adminQueries'
+import { Activity, Calendar, Users, BarChart3, Clock } from 'lucide-react'
+import { fetchManagerActivity, getCrossAssessmentMatrix, fetchTimeSpentByRole, type TimeSpentByUser } from '@/utils/adminQueries'
 import { ManagerActivity as ManagerActivityType, CrossAssessmentMatrix } from '@/types'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+
+function formatTimeSpent(seconds: number): string {
+  if (seconds <= 0) return '—'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
 
 const ManagerActivity = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [managers, setManagers] = useState<ManagerActivityType[]>([])
   const [matrix, setMatrix] = useState<CrossAssessmentMatrix[]>([])
+  const [timeSpent, setTimeSpent] = useState<Record<string, TimeSpentByUser>>({})
   const [selectedManager, setSelectedManager] = useState<ManagerActivityType | null>(null)
 
   useEffect(() => {
@@ -18,12 +27,14 @@ const ManagerActivity = () => {
       try {
         setLoading(true)
         setError(null)
-        const [managerData, matrixData] = await Promise.all([
+        const [managerData, matrixData, timeSpentData] = await Promise.all([
           fetchManagerActivity(),
           getCrossAssessmentMatrix(),
+          fetchTimeSpentByRole('manager'),
         ])
         setManagers(managerData || [])
         setMatrix(matrixData || [])
+        setTimeSpent(timeSpentData || {})
       } catch (error: any) {
         console.error('Error loading manager activity:', error)
         const errorMessage = error?.message || 'Failed to load manager activity data'
@@ -123,6 +134,10 @@ const ManagerActivity = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Last Assessment
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" title="Time spent on system (today / this week)">
+                  <Clock className="w-3.5 h-3.5 inline mr-1" />
+                  Time on system
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
@@ -166,6 +181,17 @@ const ManagerActivity = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-600">{formatDate(manager.last_assessment_date)}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-700">
+                      {timeSpent[manager.id] ? (
+                        <span title={`Today: ${formatTimeSpent(timeSpent[manager.id].today)} · Week: ${formatTimeSpent(timeSpent[manager.id].thisWeek)} · Month: ${formatTimeSpent(timeSpent[manager.id].thisMonth)} · All: ${formatTimeSpent(timeSpent[manager.id].allTime)}`}>
+                          {formatTimeSpent(timeSpent[manager.id].today)} today · {formatTimeSpent(timeSpent[manager.id].thisWeek)} week
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span

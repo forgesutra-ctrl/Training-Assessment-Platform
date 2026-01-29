@@ -45,6 +45,7 @@ import NotificationDropdown from '@/components/dashboard/NotificationDropdown'
 import QuickActions from '@/components/dashboard/QuickActions'
 import { checkAlerts } from '@/utils/notifications'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { useTimeSpentLogging } from '@/hooks/useTimeSpentLogging'
 import { isGamificationEnabled, checkAndAwardBadges } from '@/utils/gamification'
 import { SHOW_PEER_AND_LEADERBOARD } from '@/constants/featureFlags'
 import toast from 'react-hot-toast'
@@ -52,6 +53,7 @@ import toast from 'react-hot-toast'
 const TrainerDashboard = () => {
   const { user, profile, signOut } = useAuthContext()
   const navigate = useNavigate()
+  useTimeSpentLogging(profile?.role === 'trainer' ? 'trainer' : null, !!user)
   const [loading, setLoading] = useState(true)
   const [assessments, setAssessments] = useState<TrainerAssessmentWithDetails[]>([])
   const [filteredAssessments, setFilteredAssessments] = useState<TrainerAssessmentWithDetails[]>([])

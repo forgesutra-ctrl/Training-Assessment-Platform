@@ -283,6 +283,58 @@ export const fetchManagerActivity = async (): Promise<ManagerActivity[]> => {
   return managerStats
 }
 
+/** Time spent aggregates per user (for admin Manager Activity / Trainer Performance) */
+export interface TimeSpentByUser {
+  today: number
+  thisWeek: number
+  thisMonth: number
+  allTime: number
+}
+
+/**
+ * Fetch time spent by role (managers or trainers). Returns seconds per user_id.
+ * Table user_time_spent may not exist; returns empty record on error.
+ */
+export const fetchTimeSpentByRole = async (
+  role: 'manager' | 'trainer'
+): Promise<Record<string, TimeSpentByUser>> => {
+  try {
+    const { data: rows, error } = await supabase
+      .from('user_time_spent')
+      .select('user_id, date, total_seconds')
+      .eq('role', role)
+
+    if (error) return {}
+    if (!rows || rows.length === 0) return {}
+
+    const now = new Date()
+    const todayStr = now.toISOString().slice(0, 10)
+    const weekStart = new Date(now)
+    weekStart.setDate(weekStart.getDate() - 7)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+    const byUser: Record<string, { today: number; thisWeek: number; thisMonth: number; allTime: number }> = {}
+
+    for (const row of rows) {
+      const uid = row.user_id as string
+      if (!byUser[uid]) {
+        byUser[uid] = { today: 0, thisWeek: 0, thisMonth: 0, allTime: 0 }
+      }
+      const sec = row.total_seconds ?? 0
+      const dateStr = (row.date as string).slice(0, 10)
+      const d = new Date(dateStr + 'T00:00:00')
+      byUser[uid].allTime += sec
+      if (dateStr === todayStr) byUser[uid].today += sec
+      if (d >= weekStart) byUser[uid].thisWeek += sec
+      if (d >= monthStart) byUser[uid].thisMonth += sec
+    }
+
+    return byUser
+  } catch {
+    return {}
+  }
+}
+
 /**
  * Fetch monthly trends
  */
