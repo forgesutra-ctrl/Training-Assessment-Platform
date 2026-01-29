@@ -1,9 +1,55 @@
 /**
  * Trend Detection & Analysis
- * Automatically detect patterns and generate alerts
+ * Data-backed alerts with full context for admin drill-down
  */
 
-import { AssessmentWithDetails, TrainerAssessmentWithDetails } from '@/types'
+import { AssessmentWithDetails, TrainerAssessmentWithDetails, ASSESSMENT_STRUCTURE } from '@/types'
+
+/** Category IDs for 21-parameter schema (skill-gap detection) */
+const CATEGORY_IDS = ['trainer_readiness', 'expertise_delivery', 'engagement_interaction', 'communication', 'technical_acumen'] as const
+
+/** Human-readable category label */
+function getCategoryLabel(categoryId: string): string {
+  const cat = ASSESSMENT_STRUCTURE.categories.find((c) => c.id === categoryId)
+  return cat?.name ?? categoryId.replace(/_/g, ' ')
+}
+
+/** Average score for one category on one assessment (21-param schema) */
+function getCategoryAverage(assessment: any, categoryId: string): number | null {
+  const cat = ASSESSMENT_STRUCTURE.categories.find((c) => c.id === categoryId)
+  if (!cat) return null
+  let sum = 0
+  let count = 0
+  cat.parameters.forEach((p) => {
+    const v = assessment[p.id]
+    if (v != null && typeof v === 'number' && v > 0) {
+      sum += v
+      count++
+    }
+  })
+  return count > 0 ? sum / count : null
+}
+
+/** Enriched alert payload for UI (period, scores table, metrics) */
+export interface TrendAlertData {
+  periodStart?: string
+  periodEnd?: string
+  assessmentCount?: number
+  scoresWithDates?: { date: string; score: number; assessmentId?: string }[]
+  mean?: number
+  stdDev?: number
+  minScore?: number
+  maxScore?: number
+  decline?: number
+  improvement?: number
+  scores?: number[]
+  parameter?: string
+  parameterLabel?: string
+  average?: number
+  daysSince?: number
+  lastAssessmentDate?: string | null
+  [key: string]: any
+}
 
 export interface TrendAlert {
   id: string
@@ -12,8 +58,11 @@ export interface TrendAlert {
   message: string
   trainerId?: string
   managerId?: string
+  trainerName?: string
+  managerName?: string
   parameter?: string
-  data?: any
+  parameterLabel?: string
+  data?: TrendAlertData
   createdAt: string
 }
 
@@ -34,8 +83,12 @@ export const detectDecliningTrend = (
 
   const recent = assessments.slice(0, 3)
   const scores = recent.map((a) => a.average_score).reverse()
+  const scoresWithDates = recent.map((a) => ({
+    date: a.assessment_date,
+    score: a.average_score,
+    assessmentId: a.id,
+  })).reverse()
 
-  // Check if scores are decreasing
   let declining = true
   for (let i = 1; i < scores.length; i++) {
     if (scores[i] >= scores[i - 1]) {
@@ -46,11 +99,23 @@ export const detectDecliningTrend = (
 
   if (declining) {
     const decline = scores[0] - scores[scores.length - 1]
+    const periodStart = recent[recent.length - 1]?.assessment_date
+    const periodEnd = recent[0]?.assessment_date
     return {
       type: 'declining',
-      description: `Performance declining: ${scores[scores.length - 1].toFixed(2)} → ${scores[0].toFixed(2)}`,
+      description: `Performance declining: ${scores[scores.length - 1].toFixed(2)} → ${scores[0].toFixed(2)} over last 3 assessments`,
       confidence: decline > 0.5 ? 0.9 : 0.7,
-      data: { scores, decline },
+      data: {
+        scores,
+        decline,
+        scoresWithDates,
+        periodStart,
+        periodEnd,
+        assessmentCount: recent.length,
+        minScore: Math.min(...scores),
+        maxScore: Math.max(...scores),
+        mean: Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)),
+      },
     }
   }
 
@@ -67,8 +132,12 @@ export const detectImprovingTrend = (
 
   const recent = assessments.slice(0, 3)
   const scores = recent.map((a) => a.average_score).reverse()
+  const scoresWithDates = recent.map((a) => ({
+    date: a.assessment_date,
+    score: a.average_score,
+    assessmentId: a.id,
+  })).reverse()
 
-  // Check if scores are increasing
   let improving = true
   for (let i = 1; i < scores.length; i++) {
     if (scores[i] <= scores[i - 1]) {
@@ -79,11 +148,23 @@ export const detectImprovingTrend = (
 
   if (improving) {
     const improvement = scores[scores.length - 1] - scores[0]
+    const periodStart = recent[recent.length - 1]?.assessment_date
+    const periodEnd = recent[0]?.assessment_date
     return {
       type: 'improving',
-      description: `Rapid improvement: ${scores[0].toFixed(2)} → ${scores[scores.length - 1].toFixed(2)}`,
+      description: `Rapid improvement: ${scores[0].toFixed(2)} → ${scores[scores.length - 1].toFixed(2)} over last 3 assessments`,
       confidence: improvement > 0.5 ? 0.9 : 0.7,
-      data: { scores, improvement },
+      data: {
+        scores,
+        improvement,
+        scoresWithDates,
+        periodStart,
+        periodEnd,
+        assessmentCount: recent.length,
+        minScore: Math.min(...scores),
+        maxScore: Math.max(...scores),
+        mean: Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)),
+      },
     }
   }
 
@@ -98,19 +179,36 @@ export const detectInconsistency = (
 ): TrendPattern | null => {
   if (assessments.length < 5) return null
 
-  const scores = assessments.slice(0, 10).map((a) => a.average_score)
-  const mean = scores.reduce((a, b) => a + b, 0) / scores.length
+  const recent = assessments.slice(0, 10)
+  const scores = recent.map((a) => a.average_score)
+  const mean = Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2))
   const variance =
     scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length
-  const stdDev = Math.sqrt(variance)
+  const stdDev = Number(Math.sqrt(variance).toFixed(2))
+  const scoresWithDates = recent.map((a) => ({
+    date: a.assessment_date,
+    score: a.average_score,
+    assessmentId: a.id,
+  }))
+  const periodStart = recent[recent.length - 1]?.assessment_date
+  const periodEnd = recent[0]?.assessment_date
 
-  // High variance indicates inconsistency
   if (stdDev > 0.8) {
     return {
       type: 'inconsistent',
-      description: `High variance in scores (std dev: ${stdDev.toFixed(2)})`,
+      description: `High variance in last ${scores.length} assessments (std dev: ${stdDev}; range ${Math.min(...scores).toFixed(2)}–${Math.max(...scores).toFixed(2)})`,
       confidence: stdDev > 1.0 ? 0.9 : 0.7,
-      data: { mean, stdDev, scores },
+      data: {
+        mean,
+        stdDev,
+        scores,
+        scoresWithDates,
+        periodStart,
+        periodEnd,
+        assessmentCount: scores.length,
+        minScore: Number(Math.min(...scores).toFixed(2)),
+        maxScore: Number(Math.max(...scores).toFixed(2)),
+      },
     }
   }
 
@@ -118,37 +216,51 @@ export const detectInconsistency = (
 }
 
 /**
- * Detect skill gaps (one parameter consistently low)
+ * Detect skill gaps (one category consistently low; 21-param schema)
  */
 export const detectSkillGap = (
   assessments: TrainerAssessmentWithDetails[]
 ): TrendPattern[] => {
   if (assessments.length < 3) return []
 
-  const parameters = [
-    'trainers_readiness',
-    'communication_skills',
-    'domain_expertise',
-    'knowledge_displayed',
-    'people_management',
-    'technical_skills',
-  ]
-
   const gaps: TrendPattern[] = []
 
-  parameters.forEach((param) => {
-    const scores = assessments.map((a: any) => a[param]).filter(Boolean)
-    if (scores.length < 3) return
+  CATEGORY_IDS.forEach((categoryId) => {
+    const categoryScores: number[] = []
+    assessments.slice(0, 10).forEach((a: any) => {
+      const catAvg = getCategoryAverage(a, categoryId)
+      if (catAvg != null) categoryScores.push(catAvg)
+    })
+    if (categoryScores.length < 3) return
 
-    const avg = scores.reduce((a, b) => a + b, 0) / scores.length
-    const allLow = scores.every((s) => s < 3.0)
+    const avg = Number((categoryScores.reduce((a, b) => a + b, 0) / categoryScores.length).toFixed(2))
+    const allLow = categoryScores.every((s) => s < 3.0)
 
     if (avg < 2.5 || allLow) {
+      const recent = assessments.slice(0, 10)
+      const periodStart = recent[recent.length - 1]?.assessment_date
+      const periodEnd = recent[0]?.assessment_date
+      const scoresWithDates = recent.map((a) => {
+        const v = getCategoryAverage(a, categoryId)
+        return { date: a.assessment_date, score: v ?? 0, assessmentId: a.id }
+      }).filter((d) => d.score > 0)
+
       gaps.push({
         type: 'skill_gap',
-        description: `${param.replace(/_/g, ' ')} consistently low (avg: ${avg.toFixed(2)})`,
+        description: `${getCategoryLabel(categoryId)} consistently low (avg: ${avg.toFixed(2)}/5 across ${categoryScores.length} assessments)`,
         confidence: avg < 2.0 ? 0.9 : 0.7,
-        data: { parameter: param, average: avg, scores },
+        data: {
+          parameter: categoryId,
+          parameterLabel: getCategoryLabel(categoryId),
+          average: avg,
+          scores: categoryScores,
+          scoresWithDates: scoresWithDates.length ? scoresWithDates : undefined,
+          periodStart,
+          periodEnd,
+          assessmentCount: categoryScores.length,
+          minScore: Math.min(...categoryScores),
+          maxScore: Math.max(...categoryScores),
+        },
       })
     }
   })
@@ -207,16 +319,17 @@ export const generateTrendAlerts = (
     })
   }
 
-  // Check for skill gaps
+  // Check for skill gaps (21-param categories)
   const gaps = detectSkillGap(assessments)
   gaps.forEach((gap, index) => {
     alerts.push({
       id: `gap-${trainerId}-${index}`,
       type: 'skill_gap',
       severity: gap.data.average < 2.0 ? 'high' : 'medium',
-      message: `Skill gap detected: ${gap.description}`,
+      message: `Skill gap: ${gap.description}`,
       trainerId,
       parameter: gap.data.parameter,
+      parameterLabel: gap.data.parameterLabel,
       data: gap.data,
       createdAt: new Date().toISOString(),
     })
@@ -240,6 +353,7 @@ export const detectManagerInactivity = (
       severity: 'medium',
       message: 'No assessments submitted yet',
       managerId,
+      data: { daysSince: null, lastAssessmentDate: null },
       createdAt: new Date().toISOString(),
     }
   }
@@ -253,9 +367,9 @@ export const detectManagerInactivity = (
       id: `inactivity-${managerId}`,
       type: 'inactivity',
       severity: daysSince > 60 ? 'high' : 'medium',
-      message: `No assessments in ${daysSince} days`,
+      message: `No assessments submitted in ${daysSince} days (last: ${new Date(lastAssessmentDate).toLocaleDateString()})`,
       managerId,
-      data: { daysSince, lastAssessmentDate },
+      data: { daysSince, lastAssessmentDate, periodEnd: lastAssessmentDate },
       createdAt: new Date().toISOString(),
     }
   }
@@ -299,32 +413,25 @@ export const detectPlatformTrends = (assessments: AssessmentWithDetails[]): Tren
     }
   }
 
-  // Check parameter trends
-  const parameters = [
-    'trainers_readiness',
-    'communication_skills',
-    'domain_expertise',
-    'knowledge_displayed',
-    'people_management',
-    'technical_skills',
-  ]
-
-  parameters.forEach((param) => {
-    const recentScores = assessments
-      .slice(0, 50)
-      .map((a: any) => a[param])
-      .filter(Boolean)
+  // Check category trends (21-param schema)
+  CATEGORY_IDS.forEach((categoryId) => {
+    const recentScores: number[] = []
+    assessments.slice(0, 50).forEach((a: any) => {
+      const v = getCategoryAverage(a, categoryId)
+      if (v != null) recentScores.push(v)
+    })
     if (recentScores.length < 10) return
 
-    const avg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length
+    const avg = Number((recentScores.reduce((a, b) => a + b, 0) / recentScores.length).toFixed(2))
     if (avg < 3.0) {
       alerts.push({
-        id: `platform-${param}`,
+        id: `platform-${categoryId}`,
         type: 'skill_gap',
         severity: 'medium',
-        message: `${param.replace(/_/g, ' ')} scores below average (${avg.toFixed(2)})`,
-        parameter: param,
-        data: { average: avg },
+        message: `Platform: ${getCategoryLabel(categoryId)} scores below average (${avg.toFixed(2)}/5)`,
+        parameter: categoryId,
+        parameterLabel: getCategoryLabel(categoryId),
+        data: { average: avg, assessmentCount: recentScores.length },
         createdAt: new Date().toISOString(),
       })
     }
