@@ -489,6 +489,63 @@ async function createAssessments(userIdMap: Map<string, string>) {
   console.log(`  ✅ Inserted ${inserted} assessments (12 months × 6 pairs × 2 per month).${failed > 0 ? ` ${failed} failed.` : ''}`)
 }
 
+/** Seed user_time_spent for managers and trainers (last 14 days, varied minutes per day). */
+async function createTimeSpentData(userIdMap: Map<string, string>) {
+  console.log('\n⏱️ Creating time-on-system data (managers + trainers, last 14 days)...')
+
+  const managerEmails = ['manager1@test.com', 'manager2@test.com']
+  const trainerEmails = [
+    'trainer1@test.com',
+    'trainer2@test.com',
+    'trainer3@test.com',
+    'trainer4@test.com',
+    'trainer5@test.com',
+    'trainer6@test.com',
+  ]
+
+  const rows: { user_id: string; role: 'manager' | 'trainer'; date: string; total_seconds: number; updated_at: string }[] = []
+  const now = new Date()
+
+  for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+    const d = new Date(now)
+    d.setDate(d.getDate() - dayOffset)
+    const dateStr = d.toISOString().split('T')[0]
+    const updatedAt = d.toISOString()
+
+    for (const email of managerEmails) {
+      const userId = userIdMap.get(email)
+      if (!userId) continue
+      const seed = (dayOffset * 17 + email.length) % 100
+      const totalSeconds = Math.min(7200, Math.max(600, 900 + seed * 45))
+      rows.push({ user_id: userId, role: 'manager', date: dateStr, total_seconds: totalSeconds, updated_at: updatedAt })
+    }
+    for (const email of trainerEmails) {
+      const userId = userIdMap.get(email)
+      if (!userId) continue
+      const seed = (dayOffset * 13 + email.length) % 100
+      const totalSeconds = Math.min(7200, Math.max(600, 1200 + seed * 40))
+      rows.push({ user_id: userId, role: 'trainer', date: dateStr, total_seconds: totalSeconds, updated_at: updatedAt })
+    }
+  }
+
+  const { error } = await supabaseAdmin.from('user_time_spent').upsert(rows, {
+    onConflict: 'user_id,role,date',
+    ignoreDuplicates: false,
+  })
+
+  if (error) {
+    const code = (error as any)?.code
+    if (code === '42P01' || (error.message || '').toLowerCase().includes('does not exist')) {
+      console.log('  ⚠️ user_time_spent table not found; run migrations/user-time-spent.sql to seed time-on-system data.')
+    } else {
+      console.error('  ❌ Time spent seed failed:', error.message)
+    }
+    return
+  }
+
+  console.log(`  ✅ Inserted ${rows.length} time-spent rows (2 managers + 6 trainers × 14 days).`)
+}
+
 async function main() {
   console.log('🚀 Starting seed data script...')
   console.log('=' .repeat(50))
@@ -503,6 +560,9 @@ async function main() {
     // Step 3: Create assessments
     await createAssessments(userIdMap)
 
+    // Step 4: Create time-on-system data (managers + trainers)
+    await createTimeSpentData(userIdMap)
+
     console.log('\n' + '='.repeat(50))
     console.log('✅ Seed data creation completed successfully!')
     console.log('\n📊 Summary:')
@@ -510,6 +570,7 @@ async function main() {
     console.log('  - 9 Users created (1 admin, 2 managers, 6 trainers)')
     console.log('  - 9 Profiles created')
     console.log('  - ~144 Assessments created (1 year: 12 months × 6 pairs × 2 per month, 21 parameters + overall_comments)')
+    console.log('  - Time-on-system: 2 managers + 6 trainers × 14 days (run migrations/user-time-spent.sql first if table exists)')
     console.log('\n🔐 Test Credentials:')
     console.log('  All users have password: Test@123456')
     console.log('  - admin1@test.com (Admin User)')
