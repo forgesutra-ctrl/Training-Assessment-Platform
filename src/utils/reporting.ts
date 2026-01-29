@@ -72,21 +72,15 @@ export const exportToExcel = async (
 }
 
 /**
- * Generate CSV export
+ * Generate CSV export (handles empty data with a placeholder row so download still works)
  */
 export const exportToCSV = (data: any[], filename: string = 'report'): void => {
-  if (data.length === 0) {
-    console.warn('No data to export')
-    return
-  }
+  const rows = data.length > 0 ? data : [{ Report: filename, Message: 'No data for this period', Generated: new Date().toISOString().split('T')[0] }]
+  const headers = Object.keys(rows[0])
   
-  // Get headers from first row
-  const headers = Object.keys(data[0])
-  
-  // Create CSV content
   const csvRows = [
-    headers.join(','), // Header row
-    ...data.map(row => 
+    headers.join(','),
+    ...rows.map(row => 
       headers.map(header => {
         const value = row[header]
         // Escape commas and quotes in CSV
@@ -282,7 +276,7 @@ export const identifyRiskIndicators = (
 }
 
 /**
- * Generate PDF (using browser print functionality)
+ * Generate PDF (using browser print functionality) from a DOM element
  */
 export const exportToPDF = (elementId: string, filename: string = 'report'): void => {
   const element = document.getElementById(elementId)
@@ -311,4 +305,73 @@ export const exportToPDF = (elementId: string, filename: string = 'report'): voi
   setTimeout(() => {
     printWindow.print()
   }, 250)
+}
+
+/** Section for report PDF: title + rows (array of key-value objects) */
+export interface ReportPDFSection {
+  title: string
+  rows: Record<string, unknown>[]
+}
+
+/**
+ * Generate PDF from report data (no DOM element required). Builds HTML and opens print dialog.
+ */
+export const exportReportToPDF = (
+  reportTitle: string,
+  sections: ReportPDFSection[],
+  filename: string = 'report'
+): void => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) return
+
+  const sectionHtml = sections
+    .map((sec) => {
+      if (!sec.rows || sec.rows.length === 0) {
+        return `<h3>${sec.title}</h3><p>No data</p>`
+      }
+      const headers = Object.keys(sec.rows[0])
+      const headerRow = headers.map((h) => `<th>${String(h)}</th>`).join('')
+      const bodyRows = sec.rows
+        .map(
+          (row) =>
+            `<tr>${headers.map((h) => `<td>${row[h] != null ? String(row[h]) : ''}</td>`).join('')}</tr>`
+        )
+        .join('')
+      return `
+        <h3>${sec.title}</h3>
+        <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+          <thead><tr>${headerRow}</tr></thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      `
+    })
+    .join('')
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${filename}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { font-size: 18px; margin-bottom: 8px; }
+          h3 { font-size: 14px; margin: 16px 0 8px; }
+          table { font-size: 12px; }
+          @media print { @page { size: A4; margin: 1cm; } }
+        </style>
+      </head>
+      <body>
+        <h1>${reportTitle}</h1>
+        <p style="color:#666;font-size:12px;">Generated: ${new Date().toLocaleString()}</p>
+        ${sectionHtml}
+      </body>
+    </html>
+  `
+
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+  }, 300)
 }
