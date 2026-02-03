@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getSupabaseAdmin, hasAdminAuth } from '@/lib/supabase-admin'
 import {
   UserForManagement,
   UserStats,
@@ -394,20 +395,43 @@ export const activateUser = async (userId: string): Promise<void> => {
 }
 
 /**
- * Reset user password
+ * Whether admin auth is available (service role key set). Required for password set/reset.
+ */
+export const canAdminSetPassword = (): boolean => hasAdminAuth()
+
+/**
+ * Set a user's password (admin only). Requires service role key.
+ */
+export const setUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+  const admin = getSupabaseAdmin()
+  if (!admin) {
+    throw new Error(
+      'Password cannot be set: admin API is not configured. Add VITE_SUPABASE_SERVICE_ROLE_KEY to .env (development only).'
+    )
+  }
+  if (newPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters')
+  }
+  if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])/.test(newPassword)) {
+    throw new Error('Password must contain uppercase, lowercase, and number')
+  }
+  const { error } = await admin.auth.admin.updateUserById(userId, { password: newPassword })
+  if (error) throw error
+}
+
+/**
+ * Generate a new random password and set it for the user (admin only). Returns the new password.
  */
 export const resetUserPassword = async (userId: string): Promise<string> => {
+  const admin = getSupabaseAdmin()
+  if (!admin) {
+    throw new Error(
+      'Password cannot be reset: admin API is not configured. Add VITE_SUPABASE_SERVICE_ROLE_KEY to .env (development only).'
+    )
+  }
   const newPassword = generatePassword()
-
-  const { error } = await supabase.auth.admin.updateUserById(userId, {
-    password: newPassword,
-  })
-
+  const { error } = await admin.auth.admin.updateUserById(userId, { password: newPassword })
   if (error) throw error
-
-  // TODO: Send password reset email
-  console.log('New password generated for user:', userId)
-
   return newPassword
 }
 

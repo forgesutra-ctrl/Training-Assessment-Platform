@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Trophy,
   BarChart3,
+  Settings,
 } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -187,6 +188,14 @@ const TrainerDashboard = () => {
             <div className="flex items-center gap-4">
               <NotificationDropdown />
               <span className="text-sm text-gray-600">{profile?.full_name || user?.email}</span>
+              <button
+                onClick={() => navigate('/settings')}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                title="Settings (e.g. change password)"
+              >
+                <Settings className="w-5 h-5" />
+                <span className="text-sm">Settings</span>
+              </button>
               <button
                 onClick={handleSignOut}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"

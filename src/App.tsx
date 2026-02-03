@@ -3,7 +3,6 @@ import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import OnboardingTour from './components/OnboardingTour'
 import Login from './pages/Login'
-import SignUp from './pages/SignUp'
 import ManagerDashboard from './pages/ManagerDashboard'
 import TrainerDashboard from './pages/TrainerDashboard'
 import AdminDashboard from './pages/AdminDashboard'
@@ -24,7 +23,7 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<SignUp />} />
+          <Route path="/signup" element={<Navigate to="/login" replace />} />
 
           {/* Protected routes with role-based access */}
           <Route

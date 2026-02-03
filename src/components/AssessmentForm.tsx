@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft,
   Calendar,
@@ -48,6 +48,8 @@ const isCommentRequiredForRating = (rating: number) => rating >= 1 && rating <= 
 const AssessmentForm = () => {
   const { profile, user } = useAuthContext()
   const navigate = useNavigate()
+  const location = useLocation()
+  const preselectedTrainerId = (location.state as { preselectedTrainerId?: string } | null)?.preselectedTrainerId
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [trainers, setTrainers] = useState<Trainer[]>([])
@@ -109,14 +111,17 @@ const AssessmentForm = () => {
       }
       try {
         const list = await fetchEligibleTrainersApi(user.id)
-        setTrainers(
-          list.map((t: any) => ({
-            id: t.id,
-            full_name: t.full_name,
-            team_id: t.team_id,
-            team_name: t.team_name ?? null,
-          }))
-        )
+        const mapped = list.map((t: any) => ({
+          id: t.id,
+          full_name: t.full_name,
+          team_id: t.team_id,
+          team_name: t.team_name ?? null,
+        }))
+        setTrainers(mapped)
+        // If opened from "Assess Now" with a preselected trainer, set that trainer
+        if (preselectedTrainerId && mapped.some((t: Trainer) => t.id === preselectedTrainerId)) {
+          setFormData((prev) => ({ ...prev, trainer_id: preselectedTrainerId }))
+        }
       } catch (error: any) {
         console.error('Error fetching trainers:', error)
         toast.error('Failed to load trainers')
@@ -126,7 +131,7 @@ const AssessmentForm = () => {
       }
     }
     load()
-  }, [profile, user])
+  }, [profile, user, preselectedTrainerId])
 
   // Calculate completion progress (comment required only for ratings 1–3)
   const getCompletionProgress = () => {

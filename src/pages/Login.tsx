@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react'
 import { useAuthContext } from '@/contexts/AuthContext'
 import AnimatedInput from '@/components/ui/AnimatedInput'
@@ -194,12 +194,9 @@ const Login = () => {
             </AnimatedButton>
           </form>
 
-          <div className="mt-6 text-center space-y-2">
-            <p className="text-sm text-gray-600">
-              Need to create an account?{' '}
-              <Link to="/signup" className="text-primary-600 hover:text-primary-700 font-medium">
-                Sign up here
-              </Link>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-500">
+              If you&apos;ve forgotten your password, please contact your admin.
             </p>
           </div>
         </div>

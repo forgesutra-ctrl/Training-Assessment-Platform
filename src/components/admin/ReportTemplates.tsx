@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { FileText, Download, Edit, Calendar, Users, TrendingUp, Award, Plus, X } from 'lucide-react'
+import { FileText, Download, Edit, Calendar, Users, TrendingUp, Award, Plus, X, List } from 'lucide-react'
 import { exportToExcel, exportToCSV, exportReportToPDF, type ReportPDFSection } from '@/utils/reporting'
-import { fetchMonthlyTrends, fetchQuarterlyData, fetchAllTrainersWithStats, fetchManagerActivity } from '@/utils/adminQueries'
+import { fetchMonthlyTrends, fetchQuarterlyData, fetchAllTrainersWithStats, fetchManagerActivity, fetchItemizedReportData } from '@/utils/adminQueries'
 import toast from 'react-hot-toast'
 
 const REPORT_TEMPLATES_STORAGE_KEY = 'taps_report_templates'
@@ -65,20 +65,34 @@ const defaultTemplates: ReportTemplate[] = [
       category: 'Management',
       period: 'Monthly',
     },
+    {
+      id: 'itemized-report',
+      name: 'Itemized Report (By Assessor / By Trainer)',
+      description: 'Detailed report by assessor and by trainer: assessment count, each assessment date, scoring, and all 21 parameter scores. Download as Excel (two sheets) or CSV.',
+      icon: List,
+      category: 'Management',
+      period: 'On-Demand',
+    },
   ]
 
 const ReportTemplates = () => {
   const [templates, setTemplates] = useState<ReportTemplate[]>(() => {
     try {
       const stored = localStorage.getItem(REPORT_TEMPLATES_STORAGE_KEY)
+      const byId = new Map(defaultTemplates.map((d) => [d.id, d.icon]))
       if (stored) {
         const parsed = JSON.parse(stored) as (Omit<ReportTemplate, 'icon'> & { icon?: unknown })[]
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const byId = new Map(defaultTemplates.map((d) => [d.id, d.icon]))
-          return parsed.map((t) => ({
+          const list = parsed.map((t) => ({
             ...t,
             icon: byId.get(t.id) ?? FileText,
           })) as ReportTemplate[]
+          // Ensure built-in Itemized Report is present (for users who saved before it was added)
+          if (!list.some((t) => t.id === 'itemized-report')) {
+            const itemized = defaultTemplates.find((d) => d.id === 'itemized-report')
+            if (itemized) list.push(itemized)
+          }
+          return list
         }
       }
     } catch (_) {}
@@ -203,6 +217,49 @@ const ReportTemplates = () => {
         pdfSections.push({ title: 'Manager Activity & Engagement', rows })
         break
       }
+      case 'itemized-report': {
+        const itemized = await fetchItemizedReportData()
+        const assessorCounts = itemized.reduce((acc, row) => {
+          acc[row.assessor_id] = (acc[row.assessor_id] ?? 0) + 1
+          return acc
+        }, {} as Record<string, number>)
+        const trainerCounts = itemized.reduce((acc, row) => {
+          acc[row.trainer_id] = (acc[row.trainer_id] ?? 0) + 1
+          return acc
+        }, {} as Record<string, number>)
+        const paramLabels = itemized[0]?.paramScores.map((p) => p.label) ?? []
+        const byAssessorRows = itemized.map((row) => {
+          const rec: Record<string, string | number> = {
+            'Assessor Name': row.assessor_name,
+            'Assessment Count': assessorCounts[row.assessor_id] ?? 0,
+            'Assessment Date': row.assessment_date,
+            'Trainer Assessed': row.trainer_name,
+            'Overall Score': row.average_score,
+          }
+          row.paramScores.forEach((p) => {
+            rec[p.label] = p.value != null ? p.value : ''
+          })
+          return rec
+        })
+        const byTrainerRows = itemized.map((row) => {
+          const rec: Record<string, string | number> = {
+            'Trainer Name': row.trainer_name,
+            'Assessment Count': trainerCounts[row.trainer_id] ?? 0,
+            'Assessment Date': row.assessment_date,
+            'Assessor': row.assessor_name,
+            'Overall Score': row.average_score,
+          }
+          row.paramScores.forEach((p) => {
+            rec[p.label] = p.value != null ? p.value : ''
+          })
+          return rec
+        })
+        excelSheets['By Assessor'] = byAssessorRows
+        excelSheets['By Trainer'] = byTrainerRows
+        csvRows = byAssessorRows
+        pdfSections.push({ title: 'Itemized Report – By Assessor', rows: byAssessorRows.slice(0, 100) }, { title: 'Itemized Report – By Trainer', rows: byTrainerRows.slice(0, 100) })
+        break
+      }
       default: {
         const dateRange = derivedRange()
         const trainers = await fetchAllTrainersWithStats(dateRange)
@@ -306,14 +363,16 @@ const ReportTemplates = () => {
               </div>
 
               <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => handleGenerateReport(template.id, template.name, 'pdf')}
-                  disabled={isGenerating}
-                  className="flex-1 btn-secondary text-sm flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <Download className="w-4 h-4" />
-                  PDF
-                </button>
+                {template.id !== 'itemized-report' && (
+                  <button
+                    onClick={() => handleGenerateReport(template.id, template.name, 'pdf')}
+                    disabled={isGenerating}
+                    className="flex-1 btn-secondary text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    <Download className="w-4 h-4" />
+                    PDF
+                  </button>
+                )}
                 <button
                   onClick={() => handleGenerateReport(template.id, template.name, 'excel')}
                   disabled={isGenerating}

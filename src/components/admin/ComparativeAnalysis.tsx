@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { GitCompare, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { GitCompare, TrendingUp, TrendingDown, Minus, Download, FileImage } from 'lucide-react'
 import {
   fetchPeriodData,
   fetchTeamsList,
@@ -9,6 +9,7 @@ import {
 import { TrainerWithStats } from '@/types'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts'
 
 const getDefaultMonths = () => {
   const d = new Date()
@@ -37,6 +38,8 @@ const ComparativeAnalysis = () => {
   const [trainer2Id, setTrainer2Id] = useState('')
   const [param1Id, setParam1Id] = useState('')
   const [param2Id, setParam2Id] = useState('')
+  const dashboardRef = useRef<HTMLDivElement>(null)
+  const [downloadingImage, setDownloadingImage] = useState(false)
 
   useEffect(() => {
     if (comparisonType === 'period') {
@@ -217,6 +220,93 @@ const ComparativeAnalysis = () => {
       ? ((data2.totalAssessments - data1.totalAssessments) / data1.totalAssessments) * 100
       : 0
     return { scoreChange, assessmentChange }
+  }
+
+  /** Chart data for comparison bar charts (safe keys for Recharts) */
+  const chartData = comparisonData
+    ? [
+        {
+          metric: 'Average Score',
+          side1: Number(comparisonData.period1.data.averageScore),
+          side2: Number(comparisonData.period2.data.averageScore),
+        },
+        {
+          metric: comparisonData.type === 'parameter' ? 'Response Count' : 'Total Assessments',
+          side1: Number(comparisonData.period1.data.totalAssessments),
+          side2: Number(comparisonData.period2.data.totalAssessments),
+        },
+        ...(comparisonData.type !== 'parameter'
+          ? [
+              {
+                metric: 'Trainers / Items',
+                side1: Number(comparisonData.period1.data.trainersAssessed),
+                side2: Number(comparisonData.period2.data.trainersAssessed),
+              },
+            ]
+          : []),
+      ]
+    : []
+
+  const handleDownloadPDF = async () => {
+    if (!dashboardRef.current) {
+      toast.error('Dashboard not found')
+      return
+    }
+    try {
+      const html2canvas = (await import('html2canvas')).default
+      const canvas = await html2canvas(dashboardRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      })
+      const imgData = canvas.toDataURL('image/png')
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) {
+        toast.error('Please allow pop-ups to download PDF')
+        return
+      }
+      printWindow.document.write(`
+        <!DOCTYPE html><html><head><title>Comparative Analysis Dashboard</title>
+        <style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;} img{max-width:100%;height:auto;}</style></head>
+        <body><img src="${imgData}" alt="Dashboard" /></body></html>
+      `)
+      printWindow.document.close()
+      printWindow.focus()
+      setTimeout(() => {
+        printWindow.print()
+        printWindow.onafterprint = () => printWindow.close()
+      }, 300)
+      toast.success('Opening print dialog — choose "Save as PDF" to download')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'PDF export failed')
+    }
+  }
+
+  const handleDownloadImage = async () => {
+    if (!dashboardRef.current) {
+      toast.error('Dashboard not found')
+      return
+    }
+    setDownloadingImage(true)
+    try {
+      const html2canvas = (await import('html2canvas')).default
+      const canvas = await html2canvas(dashboardRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      })
+      const link = document.createElement('a')
+      link.download = 'Comparative-Analysis-Dashboard.png'
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+      toast.success('Dashboard image downloaded')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Image download failed')
+    } finally {
+      setDownloadingImage(false)
+    }
   }
 
   if (loading) {
@@ -417,9 +507,94 @@ const ComparativeAnalysis = () => {
         </div>
       )}
 
-      {/* Comparison results (shared for all types) */}
+      {/* Comparison results + visual dashboard (shared for all types) */}
       {comparisonData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div ref={dashboardRef} id="comparative-analysis-dashboard" className="space-y-6 p-6 bg-white rounded-xl border border-gray-200">
+          {/* Download actions */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h3 className="text-lg font-semibold text-gray-900">Comparative Analysis Dashboard</h3>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                className="btn-secondary flex items-center gap-2 text-sm"
+              >
+                <Download className="w-4 h-4" />
+                Download as PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadImage}
+                disabled={downloadingImage}
+                className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-60"
+              >
+                <FileImage className="w-4 h-4" />
+                {downloadingImage ? 'Exporting...' : 'Download as Image'}
+              </button>
+            </div>
+          </div>
+
+          {/* Visual: comparison bar chart */}
+          <div className="card">
+            <h4 className="text-sm font-medium text-gray-700 mb-4">Comparison Overview</h4>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="metric" tick={{ fontSize: 12 }} stroke="#6b7280" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#6b7280" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    formatter={(value: number) => [Number(value).toFixed(2), '']}
+                    labelFormatter={(label) => label}
+                  />
+                  <Legend />
+                  <Bar dataKey="side1" name={comparisonData.period1.label} fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="side2" name={comparisonData.period2.label} fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Variance chart */}
+          <div className="card">
+            <h4 className="text-sm font-medium text-gray-700 mb-4">Variance (Change %)</h4>
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={[
+                    {
+                      name: 'Score Change',
+                      value: comparisonData.variance.scoreChange,
+                      fill: comparisonData.variance.scoreChange >= 0 ? '#10b981' : '#ef4444',
+                    },
+                    {
+                      name: comparisonData.type === 'parameter' ? 'Response Count Change' : 'Assessment Change',
+                      value: comparisonData.variance.assessmentChange,
+                      fill: comparisonData.variance.assessmentChange >= 0 ? '#10b981' : '#ef4444',
+                    },
+                  ]}
+                  layout="vertical"
+                  margin={{ top: 8, right: 24, left: 80, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" tick={{ fontSize: 11 }} stroke="#6b7280" tickFormatter={(v) => `${v}%`} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} stroke="#6b7280" width={72} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    formatter={(value: number) => [`${Number(value).toFixed(1)}%`, '']}
+                  />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                    {[0, 1].map((i) => (
+                      <Cell key={i} fill={i === 0 ? (comparisonData.variance.scoreChange >= 0 ? '#10b981' : '#ef4444') : (comparisonData.variance.assessmentChange >= 0 ? '#10b981' : '#ef4444')} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Side 1 */}
           <div className="card">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">{comparisonData.period1.label}</h3>
@@ -533,6 +708,7 @@ const ComparativeAnalysis = () => {
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}

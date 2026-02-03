@@ -4,6 +4,7 @@ import { UserForManagement } from '@/types'
 import { fetchTrainerAssessments } from '@/utils/trainerAssessments'
 import { fetchManagerAssessments } from '@/utils/assessments'
 import { TrainerAssessmentWithDetails, AssessmentWithDetails } from '@/types'
+import { exportToExcel } from '@/utils/reporting'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 
@@ -23,6 +24,7 @@ const UserDetailModal = ({ isOpen, user, onClose }: UserDetailModalProps) => {
     averageRating: 0,
     trend: 'stable' as 'up' | 'down' | 'stable',
   })
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -84,6 +86,57 @@ const UserDetailModal = ({ isOpen, user, onClose }: UserDetailModalProps) => {
         return 'bg-purple-100 text-purple-800'
       default:
         return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const handleExportReport = async () => {
+    if (!user) return
+    try {
+      setExporting(true)
+      toast.loading('Preparing Excel export...')
+      let allAssessments: (TrainerAssessmentWithDetails | AssessmentWithDetails)[] = []
+      if (user.role === 'trainer') {
+        allAssessments = await fetchTrainerAssessments(user.id)
+      } else if (user.role === 'manager') {
+        allAssessments = await fetchManagerAssessments(user.id, 10000)
+      }
+      const avgRating = allAssessments.length > 0
+        ? Number((allAssessments.reduce((s, a) => s + a.average_score, 0) / allAssessments.length).toFixed(2))
+        : 0
+      const summaryRows = [{
+        Name: user.full_name,
+        Email: user.email,
+        Role: user.role,
+        Team: user.team_name ?? '—',
+        'Reporting Manager': user.reporting_manager_name ?? '—',
+        'Total Assessments': allAssessments.length,
+        'Average Rating': avgRating,
+      }]
+      const assessmentRows = allAssessments.map((a) => {
+        const base: Record<string, string | number> = {
+          'Assessment Date': a.assessment_date,
+          'Average Score': a.average_score,
+        }
+        if (user!.role === 'trainer') {
+          base['Assessor'] = (a as TrainerAssessmentWithDetails).assessor_name ?? '—'
+        } else {
+          base['Trainer Assessed'] = (a as AssessmentWithDetails).trainer_name ?? '—'
+        }
+        return base
+      })
+      const excelSheets: Record<string, any[]> = {
+        'User Summary': summaryRows,
+        Assessments: assessmentRows.length > 0 ? assessmentRows : [{ 'Assessment Date': '—', 'Average Score': '—', ...(user.role === 'trainer' ? { Assessor: 'No assessments' } : { 'Trainer Assessed': 'No assessments' }) }],
+      }
+      const safeName = `User-Report-${user.full_name.replace(/[^a-zA-Z0-9-_]/g, '-').slice(0, 40)}`
+      await exportToExcel(excelSheets, safeName)
+      toast.dismiss()
+      toast.success('Excel report downloaded')
+    } catch (err: any) {
+      toast.dismiss()
+      toast.error(err?.message ?? 'Export failed')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -284,9 +337,14 @@ const UserDetailModal = ({ isOpen, user, onClose }: UserDetailModalProps) => {
 
             {/* Actions */}
             <div className="flex gap-4 pt-4 border-t border-gray-200">
-              <button className="btn-secondary flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportReport}
+                disabled={exporting}
+                className="btn-secondary flex items-center gap-2 disabled:opacity-60"
+              >
                 <Download className="w-5 h-5" />
-                Export Report
+                {exporting ? 'Exporting...' : 'Export Report'}
               </button>
               <button className="btn-primary flex items-center gap-2">
                 <MessageSquare className="w-5 h-5" />

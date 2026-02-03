@@ -13,6 +13,19 @@ import {
 import { calculateAssessmentAverage, calculateParameterAverages } from '@/utils/trainerStats'
 import { ASSESSMENT_STRUCTURE } from '@/types'
 
+/** Single assessment row for itemized reports (by assessor / by trainer) */
+export interface ItemizedAssessmentRow {
+  id: string
+  assessor_id: string
+  assessor_name: string
+  trainer_id: string
+  trainer_name: string
+  assessment_date: string
+  average_score: number
+  created_at: string
+  paramScores: Array<{ paramId: string; label: string; value: number | null }>
+}
+
 /**
  * Fetch platform-wide statistics
  */
@@ -737,6 +750,67 @@ export const fetchRecentActivity = async (limit: number = 20): Promise<RecentAct
       assessment_date: a.assessment_date,
       average_score: Number(avg.toFixed(2)),
       created_at: a.created_at,
+    }
+  })
+}
+
+/**
+ * Fetch all assessments with assessor/trainer names and full parameter scores for itemized reports.
+ */
+export const fetchItemizedReportData = async (): Promise<ItemizedAssessmentRow[]> => {
+  const { data, error } = await supabase
+    .from('assessments')
+    .select('*')
+    .order('assessment_date', { ascending: false })
+
+  if (error) throw error
+
+  const list = data || []
+  const assessorIds = [...new Set(list.map((a: any) => a.assessor_id).filter(Boolean))]
+  const trainerIds = [...new Set(list.map((a: any) => a.trainer_id).filter(Boolean))]
+
+  let assessorMap = new Map<string, string>()
+  let trainerMap = new Map<string, string>()
+
+  if (assessorIds.length > 0) {
+    const query = supabase.from('profiles').select('id, full_name')
+    const { data: assessors } = assessorIds.length === 1
+      ? await query.eq('id', assessorIds[0])
+      : await query.in('id', assessorIds)
+    const arr = Array.isArray(assessors) ? assessors : assessors ? [assessors] : []
+    arr.forEach((p: any) => assessorMap.set(p.id, p.full_name || 'Unknown'))
+  }
+  if (trainerIds.length > 0) {
+    const query = supabase.from('profiles').select('id, full_name')
+    const { data: trainers } = trainerIds.length === 1
+      ? await query.eq('id', trainerIds[0])
+      : await query.in('id', trainerIds)
+    const arr = Array.isArray(trainers) ? trainers : trainers ? [trainers] : []
+    arr.forEach((p: any) => trainerMap.set(p.id, p.full_name || 'Unknown'))
+  }
+
+  const paramList: { paramId: string; label: string }[] = []
+  ASSESSMENT_STRUCTURE.categories.forEach((cat) => {
+    cat.parameters.forEach((p) => paramList.push({ paramId: p.id, label: p.label }))
+  })
+
+  return list.map((a: any) => {
+    const avg = calculateAssessmentAverage(a)
+    const paramScores = paramList.map(({ paramId, label }) => ({
+      paramId,
+      label,
+      value: a[paramId] != null && a[paramId] > 0 ? Number(a[paramId]) : null,
+    }))
+    return {
+      id: a.id,
+      assessor_id: a.assessor_id,
+      assessor_name: assessorMap.get(a.assessor_id) || 'Unknown',
+      trainer_id: a.trainer_id,
+      trainer_name: trainerMap.get(a.trainer_id) || 'Unknown',
+      assessment_date: a.assessment_date,
+      average_score: Number(avg.toFixed(2)),
+      created_at: a.created_at,
+      paramScores,
     }
   })
 }

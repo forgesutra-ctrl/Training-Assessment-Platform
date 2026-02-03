@@ -29,6 +29,7 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
   const [loading, setLoading] = useState(true)
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [suggestedTrainers, setSuggestedTrainers] = useState<TrainerToAssess[]>([])
+  const [myTeamReportees, setMyTeamReportees] = useState<{ id: string; full_name: string }[]>([])
   const [upcomingAssessments, setUpcomingAssessments] = useState<any[]>([])
 
   const loadSuggestedTrainers = useCallback(async () => {
@@ -96,64 +97,67 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
     }
   }, [user])
 
-  const loadUpcomingAssessments = useCallback(async () => {
+  // Load direct reportees (your team) and their recent assessments
+  const loadReporteesRecentPerformance = useCallback(async () => {
     if (!user) {
-      console.warn('Cannot load upcoming assessments: user is undefined')
+      setMyTeamReportees([])
       setUpcomingAssessments([])
       return
     }
-    // This would integrate with a calendar system
-    // For now, show recent assessments
     try {
-      // Fetch assessments first
+      // Direct reportees: trainers who report to this manager (same as Reporting Structure)
+      const { data: reportees, error: reporteesError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('role', 'trainer')
+        .eq('reporting_manager_id', user.id)
+        .order('full_name')
+
+      if (reporteesError) {
+        setMyTeamReportees([])
+        setUpcomingAssessments([])
+        return
+      }
+
+      const reporteeList = reportees ?? []
+      setMyTeamReportees(reporteeList.map((r: any) => ({ id: r.id, full_name: r.full_name })))
+
+      if (reporteeList.length === 0) {
+        setUpcomingAssessments([])
+        return
+      }
+
+      const reporteeIds = reporteeList.map((r: any) => r.id)
+      const reporteeMap = new Map(reporteeList.map((r: any) => [r.id, r]))
+
+      // Recent assessments of these reportees (by any assessor)
       const { data: assessments, error: assessmentsError } = await supabase
         .from('assessments')
         .select('id, assessment_date, trainer_id')
-        .eq('assessor_id', user.id)
+        .in('trainer_id', reporteeIds)
         .order('assessment_date', { ascending: false })
-        .limit(5)
+        .limit(100)
 
-      if (assessmentsError) {
-        console.error('Error fetching assessments:', assessmentsError)
-        setUpcomingAssessments([])
-        return
-      }
-
-      if (!assessments || assessments.length === 0) {
-        setUpcomingAssessments([])
-        return
-      }
-
-      // Fetch trainer profiles separately
-      const trainerIds = [...new Set(assessments.map((a: any) => a.trainer_id).filter(Boolean))]
-      let trainerMap = new Map<string, any>()
-      
-      if (trainerIds.length > 0) {
-        let query = supabase.from('profiles').select('id, full_name')
-        const { data: trainers, error: trainersError } = trainerIds.length === 1
-          ? await query.eq('id', trainerIds[0])
-          : await query.in('id', trainerIds)
-        
-        if (!trainersError && trainers) {
-          const trainersArray = Array.isArray(trainers) ? trainers : [trainers]
-          trainersArray.forEach((trainer: any) => {
-            trainerMap.set(trainer.id, trainer)
-          })
+      // One row per reportee: each trainer appears once with their latest assessment (or none)
+      const latestByTrainer = new Map<string, any>()
+      if (!assessmentsError && assessments && assessments.length > 0) {
+        for (const a of assessments) {
+          if (!latestByTrainer.has(a.trainer_id)) latestByTrainer.set(a.trainer_id, a)
         }
       }
-
-      // Combine assessments with trainer data
-      const assessmentsWithTrainers = assessments.map((assessment: any) => {
-        const trainer = trainerMap.get(assessment.trainer_id)
+      const list = reporteeList.map((r: any) => {
+        const latest = latestByTrainer.get(r.id)
         return {
-          ...assessment,
-          trainer: trainer ? { full_name: trainer.full_name } : null,
+          id: latest?.id ?? null,
+          assessment_date: latest?.assessment_date ?? null,
+          trainer_id: r.id,
+          trainer: { full_name: r.full_name },
         }
       })
-
-      setUpcomingAssessments(assessmentsWithTrainers)
+      setUpcomingAssessments(list)
     } catch (error) {
-      console.error('Error loading upcoming assessments:', error)
+      console.error('Error loading reportees performance:', error)
+      setMyTeamReportees([])
       setUpcomingAssessments([])
     }
   }, [user])
@@ -171,14 +175,14 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
       const recs = await getManagerRecommendations(user.id)
       setRecommendations(recs)
       await loadSuggestedTrainers()
-      await loadUpcomingAssessments()
+      await loadReporteesRecentPerformance()
     } catch (error: any) {
       console.error('Error loading dashboard:', error)
       toast.error('Failed to load dashboard data')
     } finally {
       setLoading(false)
     }
-  }, [user, loadSuggestedTrainers, loadUpcomingAssessments])
+  }, [user, loadSuggestedTrainers, loadReporteesRecentPerformance])
 
   useEffect(() => {
     if (user) {
@@ -223,14 +227,17 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
       <ActionRequiredWidget recommendations={recommendations} userRole="manager" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Suggested Trainers to Assess */}
+        {/* Suggested Trainers to Assess — only trainers aligned for this manager (cross-team; not reportees) */}
         <div className="card">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-2">
             <Users className="w-5 h-5 text-primary-600" />
             <h3 className="text-lg font-semibold text-gray-900">Suggested Trainers to Assess This Week</h3>
           </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Only trainers you can assess under the crossover rule (other teams; not your direct reportees).
+          </p>
           {suggestedTrainers.length === 0 ? (
-            <p className="text-sm text-gray-500">No trainers to suggest at this time.</p>
+            <p className="text-sm text-gray-500">No trainers aligned for you to assess at this time.</p>
           ) : (
             <div className="space-y-3">
               {suggestedTrainers.map((trainer) => (
@@ -251,7 +258,7 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
                       )}
                     </div>
                     <button
-                      onClick={() => navigate('/manager/assessment/new')}
+                      onClick={() => navigate('/manager/assessment/new', { state: { preselectedTrainerId: trainer.id } })}
                       className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
                     >
                       Assess Now
@@ -263,21 +270,44 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
           )}
         </div>
 
-        {/* Recent Team Performance Snapshot */}
+        {/* Recent Team Performance — direct reportees only (assessments done by others on your team) */}
         <div className="card">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-5 h-5 text-primary-600" />
             <h3 className="text-lg font-semibold text-gray-900">Recent Team Performance</h3>
           </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Your direct reportees — recent assessments of your team (completed by other assessors).
+          </p>
+          {/* Always show your team (direct reportees) so it matches Reporting Structure */}
+          {myTeamReportees.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Your team ({myTeamReportees.length})</p>
+              <div className="flex flex-wrap gap-2">
+                {myTeamReportees.map((r) => (
+                  <span
+                    key={r.id}
+                    className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-primary-50 text-primary-800 border border-primary-200"
+                  >
+                    {r.full_name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {myTeamReportees.length === 0 && (
+            <p className="text-sm text-amber-600 mb-4">No direct reportees assigned. Update reporting manager in Admin if needed.</p>
+          )}
           <div className="space-y-3">
             {upcomingAssessments.length === 0 ? (
-              <p className="text-sm text-gray-500">No recent assessments to display.</p>
+              <p className="text-sm text-gray-500">No direct reportees to show.</p>
             ) : (
-              upcomingAssessments.map((assessment: any) => {
-                const trainer = assessment.trainer
+              upcomingAssessments.map((row: any) => {
+                const trainer = row.trainer
+                const hasAssessment = row.id != null && row.assessment_date != null
                 return (
                   <div
-                    key={assessment.id}
+                    key={row.trainer_id}
                     className="p-3 bg-gray-50 rounded-lg border border-gray-200"
                   >
                     <div className="flex items-center justify-between">
@@ -286,31 +316,32 @@ const ManagerSmartDashboard = ({ onViewAssessment }: ManagerSmartDashboardProps 
                           {trainer?.full_name || 'Unknown Trainer'}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {new Date(assessment.assessment_date).toLocaleDateString()}
+                          {hasAssessment
+                            ? new Date(row.assessment_date).toLocaleDateString()
+                            : 'No recent assessment'}
                         </p>
                       </div>
-                      <button
-                        onClick={async () => {
-                          if (onViewAssessment) {
-                            // Fetch full assessment details
-                            try {
-                              const { fetchAssessmentDetails } = await import('@/utils/assessments')
-                              const fullAssessment = await fetchAssessmentDetails(assessment.id)
-                              if (fullAssessment) {
-                                onViewAssessment(fullAssessment)
+                      {hasAssessment ? (
+                        <button
+                          onClick={async () => {
+                            if (onViewAssessment) {
+                              try {
+                                const { fetchAssessmentDetails } = await import('@/utils/assessments')
+                                const fullAssessment = await fetchAssessmentDetails(row.id)
+                                if (fullAssessment) onViewAssessment(fullAssessment)
+                              } catch (error) {
+                                console.error('Error fetching assessment details:', error)
+                                toast.error('Failed to load assessment details')
                               }
-                            } catch (error) {
-                              console.error('Error fetching assessment details:', error)
-                              toast.error('Failed to load assessment details')
+                            } else {
+                              navigate('/manager/dashboard')
                             }
-                          } else {
-                            navigate('/manager/dashboard')
-                          }
-                        }}
-                        className="text-primary-600 hover:text-primary-800 text-sm"
-                      >
-                        View
-                      </button>
+                          }}
+                          className="text-primary-600 hover:text-primary-800 text-sm"
+                        >
+                          View
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 )

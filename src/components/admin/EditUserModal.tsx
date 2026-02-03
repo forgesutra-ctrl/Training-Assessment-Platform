@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, User, Mail, Shield, Users, UserCheck, Lock, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { UserForManagement, UpdateUserData } from '@/types'
-import { updateUser, getAvailableManagers, resetUserPassword, validateUserData } from '@/utils/userManagement'
+import { updateUser, getAvailableManagers, resetUserPassword, setUserPassword, canAdminSetPassword, validateUserData } from '@/utils/userManagement'
 import { useAuthContext } from '@/contexts/AuthContext'
 import toast from 'react-hot-toast'
 import LoadingSpinner from '@/components/LoadingSpinner'
@@ -19,6 +19,8 @@ const EditUserModal = ({ isOpen, user, onClose, onSuccess }: EditUserModalProps)
   const [loading, setLoading] = useState(false)
   const [loadingManagers, setLoadingManagers] = useState(false)
   const [resettingPassword, setResettingPassword] = useState(false)
+  const [settingPassword, setSettingPassword] = useState(false)
+  const [newPasswordField, setNewPasswordField] = useState('')
   const [teams, setTeams] = useState<Array<{ id: string; team_name: string }>>([])
   const [availableManagers, setAvailableManagers] = useState<Array<{ id: string; full_name: string }>>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -150,21 +152,44 @@ const EditUserModal = ({ isOpen, user, onClose, onSuccess }: EditUserModalProps)
 
   const handleResetPassword = async () => {
     if (!user) return
-
-    if (!confirm('Are you sure you want to reset this user\'s password? A new password will be generated and should be sent to the user.')) {
+    if (!canAdminSetPassword()) {
+      toast.error('Admin password reset is not configured. Add VITE_SUPABASE_SERVICE_ROLE_KEY to .env (see SERVICE_ROLE_KEY_SETUP.md).')
       return
     }
-
+    if (!confirm('Generate a new random password for this user? The new password will be shown so you can share it with them.')) {
+      return
+    }
     try {
       setResettingPassword(true)
       const newPassword = await resetUserPassword(user.id)
-      toast.success('Password reset successfully! New password: ' + newPassword)
-      // TODO: Send email with new password
+      toast.success('Password regenerated. New password: ' + newPassword)
     } catch (error: any) {
       console.error('Error resetting password:', error)
-      toast.error('Failed to reset password')
+      toast.error(error?.message || 'Failed to reset password')
     } finally {
       setResettingPassword(false)
+    }
+  }
+
+  const handleSetPassword = async () => {
+    if (!user || !newPasswordField.trim()) {
+      toast.error('Enter a new password')
+      return
+    }
+    if (!canAdminSetPassword()) {
+      toast.error('Admin password set is not configured. Add VITE_SUPABASE_SERVICE_ROLE_KEY to .env (see SERVICE_ROLE_KEY_SETUP.md).')
+      return
+    }
+    try {
+      setSettingPassword(true)
+      await setUserPassword(user.id, newPasswordField.trim())
+      toast.success('Password updated. Share the new password with the user.')
+      setNewPasswordField('')
+    } catch (error: any) {
+      console.error('Error setting password:', error)
+      toast.error(error?.message || 'Failed to set password')
+    } finally {
+      setSettingPassword(false)
     }
   }
 
@@ -179,6 +204,7 @@ const EditUserModal = ({ isOpen, user, onClose, onSuccess }: EditUserModalProps)
     setErrors({})
     setShowRoleChangeWarning(false)
     setOriginalRole('')
+    setNewPasswordField('')
     onClose()
   }
 
@@ -376,23 +402,51 @@ const EditUserModal = ({ isOpen, user, onClose, onSuccess }: EditUserModalProps)
               </select>
             </div>
 
-            {/* Password Reset */}
+            {/* Password Management */}
             <div className="border-t border-gray-200 pt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Lock className="w-4 h-4 inline mr-2" />
                 Password Management
               </label>
-              <button
-                type="button"
-                onClick={handleResetPassword}
-                disabled={resettingPassword}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
-              >
-                {resettingPassword ? 'Resetting...' : 'Reset Password'}
-              </button>
-              <p className="mt-1 text-xs text-gray-500">
-                Generates a new password and displays it (should be sent to user)
-              </p>
+              {!canAdminSetPassword() ? (
+                <p className="text-sm text-amber-600">
+                  To set or reset passwords, add VITE_SUPABASE_SERVICE_ROLE_KEY to .env (see SERVICE_ROLE_KEY_SETUP.md).
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Set new / temporary password</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={newPasswordField}
+                        onChange={(e) => setNewPasswordField(e.target.value)}
+                        placeholder="Min 8 chars, upper, lower, number"
+                        className="input-field flex-1 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSetPassword}
+                        disabled={settingPassword || !newPasswordField.trim()}
+                        className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50"
+                      >
+                        {settingPassword ? 'Setting...' : 'Set password'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleResetPassword}
+                      disabled={resettingPassword}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
+                    >
+                      {resettingPassword ? 'Regenerating...' : 'Regenerate password'}
+                    </button>
+                    <span className="text-xs text-gray-500">Generates a random password and shows it (share with user)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Read-only fields */}

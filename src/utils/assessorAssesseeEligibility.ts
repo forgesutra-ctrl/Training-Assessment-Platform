@@ -40,18 +40,24 @@ function buildReporteeIds(managerId: string, profiles: { id: string; reporting_m
 }
 
 /**
- * Get eligible trainer IDs for an assessor.
- * Base rules: no self, no direct/indirect reportees.
+ * Get eligible trainer IDs for an assessor (manager).
+ * Base rules:
+ * - No self-assessment.
+ * - No direct/indirect reportees (crossover: don't assess your own reportees).
+ * - Team crossover: manager can only assess trainers from OTHER teams (not same team_id).
  * Overrides: block = cannot assess; allow = can assess (e.g. cross-functional).
  */
 export async function getEligibleTrainerIdsForAssessor(assessorId: string): Promise<string[]> {
-  const [trainersRes, profilesRes, overridesRes] = await Promise.all([
-    supabase.from('profiles').select('id').eq('role', 'trainer'),
+  const [assessorRes, trainersRes, profilesRes, overridesRes] = await Promise.all([
+    supabase.from('profiles').select('id, team_id').eq('id', assessorId).single(),
+    supabase.from('profiles').select('id, team_id').eq('role', 'trainer'),
     supabase.from('profiles').select('id, reporting_manager_id'),
     supabase.from('assessor_assessee_overrides').select('assessee_id, override_type').eq('assessor_id', assessorId),
   ])
 
-  // If overrides table doesn't exist (404 / PGRST116), use empty overrides
+  const assessor = assessorRes?.data as { id: string; team_id: string | null } | null
+  const assessorTeamId = assessor?.team_id ?? null
+
   const trainers = trainersRes?.data ?? []
   const profilesForTree = profilesRes?.data ?? []
   let overrides = overridesRes?.data ?? []
@@ -65,7 +71,6 @@ export async function getEligibleTrainerIdsForAssessor(assessorId: string): Prom
     }
   }
 
-  const trainerIds = new Set((trainers || []).map((t: any) => t.id))
   const profiles = profilesForTree || []
   const reporteeIds = buildReporteeIds(assessorId, profiles)
   const allowSet = new Set(
@@ -76,10 +81,13 @@ export async function getEligibleTrainerIdsForAssessor(assessorId: string): Prom
   )
 
   const eligible: string[] = []
-  for (const tid of trainerIds) {
+  for (const t of trainers as { id: string; team_id: string | null }[]) {
+    const tid = t.id
     if (tid === assessorId) continue // no self
     if (blockSet.has(tid)) continue // admin blocked
     if (reporteeIds.has(tid) && !allowSet.has(tid)) continue // in reporting line and not allowed
+    // Team crossover: manager can only assess trainers from other teams (not same team)
+    if (assessorTeamId != null && t.team_id != null && t.team_id === assessorTeamId) continue // same team
     if (!reporteeIds.has(tid) || allowSet.has(tid)) eligible.push(tid)
   }
   return eligible
