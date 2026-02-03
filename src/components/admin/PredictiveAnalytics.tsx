@@ -25,14 +25,51 @@ const PredictiveAnalytics = () => {
       const data = await fetchAllTrainersWithStats('all-time')
       setTrainers(data || [])
 
-      // Identify at-risk trainers (likely to score <3 next month)
-      const atRisk = data.filter((t) => {
+      // Identify at-risk trainers with detailed risk metadata
+      const atRiskWithDetails = (data || []).filter((t) => {
         const trend = t.trend === 'down'
         const currentLow = t.current_month_avg > 0 && t.current_month_avg < 3.0
         const declining = t.trend_percentage < -10
-        return (currentLow && trend) || (declining && t.current_month_avg < 3.5)
+        const lowQuarter = t.quarter_avg > 0 && t.quarter_avg < 3.2
+        return (currentLow && trend) || (declining && t.current_month_avg < 3.5) || (lowQuarter && trend)
+      }).map((t) => {
+        const reasons: string[] = []
+        const suggestedActions: string[] = []
+        let riskLevel: 'high' | 'medium' = 'medium'
+
+        if (t.current_month_avg > 0 && t.current_month_avg < 3.0) {
+          reasons.push(`Current month average is ${t.current_month_avg.toFixed(2)}/5.0 (below 3.0 threshold)`)
+          suggestedActions.push('Schedule 1:1 review with reporting manager')
+          riskLevel = 'high'
+        }
+        if (t.trend === 'down' && t.trend_percentage < -10) {
+          reasons.push(`Declining trend: ${t.trend_percentage.toFixed(1)}% vs previous month`)
+          if (!suggestedActions.includes('Schedule 1:1 review with reporting manager')) {
+            suggestedActions.push('Review recent feedback and identify root cause')
+          }
+          if (t.trend_percentage < -20) riskLevel = 'high'
+        }
+        if (t.quarter_avg > 0 && t.quarter_avg < 3.2 && t.trend === 'down') {
+          reasons.push(`Quarter average ${t.quarter_avg.toFixed(2)}/5.0 with downward trend`)
+          suggestedActions.push('Consider peer mentoring or targeted training')
+        }
+        if (t.total_assessments < 3 && t.current_month_avg < 3.5) {
+          reasons.push(`Limited assessment history (${t.total_assessments} assessment(s)) with below-target score`)
+          suggestedActions.push('Increase assessment frequency to get clearer trend')
+        }
+        if (reasons.length === 0) {
+          reasons.push('Below target performance with negative or flat trend')
+          suggestedActions.push('Schedule 1:1 to agree improvement plan')
+        }
+
+        return {
+          ...t,
+          riskLevel,
+          reasons,
+          suggestedActions,
+        }
       })
-      setAtRiskTrainers(atRisk)
+      setAtRiskTrainers(atRiskWithDetails)
 
       // Generate predictions
       const preds = data.slice(0, 10).map((trainer) => {
@@ -104,33 +141,76 @@ const PredictiveAnalytics = () => {
 
   return (
     <div className="space-y-6">
-      {/* At-Risk Trainers */}
+      {/* At-Risk Trainers — detailed risk information */}
       <div className="card">
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-6 h-6 text-red-600" />
           <h3 className="text-lg font-semibold text-gray-900">At-Risk Trainers</h3>
         </div>
         <p className="text-sm text-gray-600 mb-4">
-          Trainers likely to score below 3.0 in the next assessment period
+          Trainers likely to score below 3.0 in the next assessment period. Expand each card for risk reasons and suggested actions.
         </p>
         {atRiskTrainers.length === 0 ? (
           <p className="text-sm text-gray-500">No at-risk trainers identified.</p>
         ) : (
-          <div className="space-y-2">
-            {atRiskTrainers.slice(0, 5).map((trainer) => (
+          <div className="space-y-4">
+            {atRiskTrainers.slice(0, 10).map((trainer: any) => (
               <div
                 key={trainer.id}
-                className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between"
+                className={`rounded-lg border-2 overflow-hidden ${
+                  trainer.riskLevel === 'high'
+                    ? 'bg-red-50 border-red-300'
+                    : 'bg-amber-50 border-amber-200'
+                }`}
               >
-                <div>
-                  <p className="font-medium text-gray-900">{trainer.full_name}</p>
-                  <p className="text-sm text-gray-600">
-                    Current: {trainer.current_month_avg.toFixed(2)}/5.0 • Trend: {trainer.trend === 'down' ? '↓' : '→'}
-                  </p>
+                <div className="p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">{trainer.full_name}</p>
+                      {trainer.team_name && (
+                        <p className="text-sm text-gray-600">Team: {trainer.team_name}</p>
+                      )}
+                      <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-700">
+                        <span>Current month: <strong>{Number(trainer.current_month_avg || 0).toFixed(2)}</strong>/5.0</span>
+                        <span>Quarter avg: <strong>{Number(trainer.quarter_avg || 0).toFixed(2)}</strong>/5.0</span>
+                        <span>All-time: <strong>{Number(trainer.all_time_avg || 0).toFixed(2)}</strong>/5.0</span>
+                        <span>Assessments: <strong>{trainer.total_assessments}</strong></span>
+                        <span className={trainer.trend === 'down' ? 'text-red-600' : trainer.trend === 'up' ? 'text-green-600' : ''}>
+                          Trend: {trainer.trend === 'down' ? `↓ ${trainer.trend_percentage}%` : trainer.trend === 'up' ? `↑ +${trainer.trend_percentage}%` : '→ stable'}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap ${
+                        trainer.riskLevel === 'high'
+                          ? 'bg-red-200 text-red-900'
+                          : 'bg-amber-200 text-amber-900'
+                      }`}
+                    >
+                      {trainer.riskLevel === 'high' ? 'High risk' : 'Medium risk'}
+                    </span>
+                  </div>
+
+                  {/* Risk reasons */}
+                  <div className="mt-4 pt-3 border-t border-gray-200/80">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Why at risk</p>
+                    <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                      {(trainer.reasons || []).map((r: string, i: number) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Suggested actions */}
+                  <div className="mt-3 pt-3 border-t border-gray-200/80">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Suggested actions</p>
+                    <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                      {(trainer.suggestedActions || []).map((a: string, i: number) => (
+                        <li key={i}>{a}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-                <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded-full">
-                  At Risk
-                </span>
               </div>
             ))}
           </div>

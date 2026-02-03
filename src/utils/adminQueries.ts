@@ -10,7 +10,8 @@ import {
   RecentActivity,
   TopPerformer,
 } from '@/types'
-import { calculateAssessmentAverage } from '@/utils/trainerStats'
+import { calculateAssessmentAverage, calculateParameterAverages } from '@/utils/trainerStats'
+import { ASSESSMENT_STRUCTURE } from '@/types'
 
 /**
  * Fetch platform-wide statistics
@@ -510,6 +511,66 @@ export const fetchQuarterlyData = async (): Promise<QuarterlyData[]> => {
   }
 
   return quarters
+}
+
+/** Period stats for comparative analysis (YYYY-MM) */
+export const fetchPeriodData = async (
+  period: string
+): Promise<{ averageScore: number; totalAssessments: number; trainersAssessed: number }> => {
+  const [y, m] = period.split('-').map(Number)
+  const monthStart = new Date(y, m - 1, 1)
+  const monthEnd = new Date(y, m, 0)
+
+  const { data: assessments } = await supabase
+    .from('assessments')
+    .select('*')
+    .gte('assessment_date', monthStart.toISOString().split('T')[0])
+    .lte('assessment_date', monthEnd.toISOString().split('T')[0])
+
+  if (!assessments || assessments.length === 0) {
+    return { averageScore: 0, totalAssessments: 0, trainersAssessed: 0 }
+  }
+
+  const totalRating = assessments.reduce((sum, a) => sum + calculateAssessmentAverage(a as any), 0)
+  const averageScore = Number((totalRating / assessments.length).toFixed(2))
+  const trainersAssessed = new Set(assessments.map((a: any) => a.trainer_id)).size
+
+  return {
+    averageScore,
+    totalAssessments: assessments.length,
+    trainersAssessed,
+  }
+}
+
+/** All teams for comparative analysis */
+export const fetchTeamsList = async (): Promise<{ id: string; team_name: string }[]> => {
+  const { data } = await supabase.from('teams').select('id, team_name').order('team_name')
+  return Array.isArray(data) ? data : data ? [data] : []
+}
+
+/** Parameter averages across all assessments (paramId, label, average, count) */
+export interface ParameterAverageForComparison {
+  paramId: string
+  label: string
+  average: number
+  count: number
+}
+
+export const fetchParameterAveragesForComparison = async (): Promise<
+  ParameterAverageForComparison[]
+> => {
+  const { data: assessments } = await supabase.from('assessments').select('*')
+  const paramAverages = calculateParameterAverages(assessments || [])
+  const paramIds: string[] = []
+  ASSESSMENT_STRUCTURE.categories.forEach((cat) => {
+    cat.parameters.forEach((p) => paramIds.push(p.id))
+  })
+  return paramAverages.map((pa, i) => ({
+    paramId: paramIds[i] || '',
+    label: pa.parameter,
+    average: pa.average,
+    count: pa.count,
+  }))
 }
 
 /**
